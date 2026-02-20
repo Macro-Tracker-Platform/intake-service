@@ -26,6 +26,12 @@ public class IntakeResponseDto {
     )
     private String mealGroupId;
 
+    @Schema(
+            description = "Food product ID",
+            example = "507f1f77bcf86cd799439011"
+    )
+    private String foodId;
+
     @Schema(description = "Food name", example = "Chicken Breast")
     private String foodName;
 

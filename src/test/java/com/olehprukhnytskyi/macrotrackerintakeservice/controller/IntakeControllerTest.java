@@ -188,6 +188,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                         .protein(BigDecimal.valueOf(16))
                         .build())
                 .date(LocalDate.now())
+                .foodId("food-1")
                 .foodName("Oatmeal")
                 .unitType(UnitType.GRAMS)
                 .availableUnits(List.of(UnitType.GRAMS))
@@ -339,6 +340,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
 
         IntakeResponseDto responseDto = IntakeResponseDto.builder()
                 .id(intake.getId())
+                .foodId("1")
                 .foodName("Potato")
                 .date(LocalDate.parse("2025-09-06"))
                 .unitType(intake.getUnitType())
