@@ -6,7 +6,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -79,6 +78,7 @@ class MealServiceTest {
                 .id(foodId)
                 .productName("Oats")
                 .nutriments(new NutrimentsDto())
+                .availableUnits(List.of(UnitType.GRAMS))
                 .build();
 
         when(foodClientService.getFoodsByIds(List.of(foodId))).thenReturn(List.of(foodDto));
@@ -108,8 +108,8 @@ class MealServiceTest {
     }
 
     @Test
-    @DisplayName("When food not found, should ignore missing foods from external service")
-    void createTemplate_whenFoodNotFound_shouldSkipItem() {
+    @DisplayName("When food not found, should throw NotFoundException")
+    void createTemplate_whenFoodNotFound_shouldThrowException() {
         // Given
         MealTemplateRequestDto request = new MealTemplateRequestDto();
         request.setName("Partial");
@@ -131,24 +131,11 @@ class MealServiceTest {
                 .build();
 
         when(foodClientService.getFoodsByIds(anyList())).thenReturn(List.of(foodDto));
-        when(mealTemplateRepository.save(any())).thenAnswer(inv -> {
-            MealTemplate t = inv.getArgument(0);
-            t.setId(1L);
-            return t;
-        });
-        when(nutrientStrategyFactory.getStrategy(UnitType.GRAMS))
-                .thenReturn(new GramsCalculationStrategy());
-        when(nutrimentsMapper.fromFoodNutriments(any())).thenReturn(new Nutriments());
 
-        // When
-        mealService.createTemplate(request, 1L);
-
-        // Then
-        ArgumentCaptor<MealTemplate> captor = ArgumentCaptor.forClass(MealTemplate.class);
-        verify(mealTemplateRepository).save(captor.capture());
-
-        assertThat(captor.getValue().getItems()).hasSize(1);
-        assertThat(captor.getValue().getItems().get(0).getFoodId()).isEqualTo("exists");
+        // When & Then
+        assertThrows(NotFoundException.class, () ->
+                mealService.createTemplate(request, 1L));
+        verify(mealTemplateRepository, never()).save(any());
     }
 
     @Test
@@ -212,19 +199,5 @@ class MealServiceTest {
                 mealService.applyTemplate(1L, LocalDate.now(), IntakePeriod.SNACK, 1L));
 
         verify(intakeRepository, never()).saveAll(any());
-    }
-
-    @Test
-    @DisplayName("Should call delete repository method")
-    void revertIntakeGroup_shouldDelete() {
-        // Given
-        String groupId = "uuid-123";
-        Long userId = 1L;
-
-        // When
-        mealService.revertIntakeGroup(groupId, userId);
-
-        // Then
-        verify(intakeRepository, times(1)).deleteByMealGroupIdAndUserId(groupId, userId);
     }
 }

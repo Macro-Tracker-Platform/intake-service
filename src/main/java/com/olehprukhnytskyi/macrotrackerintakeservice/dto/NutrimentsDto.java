@@ -19,50 +19,42 @@ import lombok.NoArgsConstructor;
 @JsonIgnoreProperties(ignoreUnknown = true)
 public class NutrimentsDto {
     @Schema(description = "Calories", example = "247.5", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal calories = BigDecimal.ZERO;
+    private BigDecimal calories;
 
     @Schema(description = "Fat in grams", example = "5.4", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal fat = BigDecimal.ZERO;
+    private BigDecimal fat;
 
     @Schema(description = "Protein in grams", example = "46.5", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal protein = BigDecimal.ZERO;
+    private BigDecimal protein;
 
     @Schema(description = "Carbohydrates in grams", example = "0.0", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal carbohydrates = BigDecimal.ZERO;
+    private BigDecimal carbohydrates;
 
     @Schema(description = "Calories per piece", example = "120.5", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal caloriesPerPiece = BigDecimal.ZERO;
+    private BigDecimal caloriesPerPiece;
 
     @Schema(description = "Fat per piece", example = "2.1", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal fatPerPiece = BigDecimal.ZERO;
+    private BigDecimal fatPerPiece;
 
     @Schema(description = "Protein per piece", example = "22.5", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal proteinPerPiece = BigDecimal.ZERO;
+    private BigDecimal proteinPerPiece;
 
     @Schema(description = "Carbohydrates per piece", example = "0.0", minimum = "0.0")
-    @Builder.Default
     @JsonTypeInfo(use = JsonTypeInfo.Id.NONE)
     @JsonSerialize(using = BigDecimalJsonSerializer.class)
-    private BigDecimal carbohydratesPerPiece = BigDecimal.ZERO;
+    private BigDecimal carbohydratesPerPiece;
 }

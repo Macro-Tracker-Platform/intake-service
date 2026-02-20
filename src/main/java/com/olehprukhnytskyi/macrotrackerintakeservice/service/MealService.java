@@ -9,6 +9,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.FoodDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateResponseDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateMealTemplateDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.MealTemplateMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
@@ -21,12 +22,12 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplat
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientCalculationStrategy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientStrategyFactory;
 import com.olehprukhnytskyi.macrotrackerintakeservice.util.CacheConstants;
+import com.olehprukhnytskyi.macrotrackerintakeservice.util.NutrientUtils;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import java.time.LocalDate;
 import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,8 +35,6 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.cache.Cache;
-import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
@@ -50,7 +49,6 @@ public class MealService {
     private final MealTemplateRepository mealTemplateRepository;
     private final IntakeMapper intakeMapper;
     private final MealTemplateMapper mealTemplateMapper;
-    private final CacheManager cacheManager;
     private final NutrimentsMapper nutrimentsMapper;
     private final FoodClientService foodClientService;
 
@@ -66,11 +64,18 @@ public class MealService {
     @CacheEvict(value = CacheConstants.MEAL_TEMPLATES, key = "#userId")
     public Long createTemplate(MealTemplateRequestDto request, Long userId) {
         log.info("Creating meal template '{}' for userId={}", request.getName(), userId);
+        List<String> foodIds = request.getItems().stream()
+                .map(MealTemplateRequestDto.TemplateItemDto::getFoodId)
+                .toList();
+        Map<String, FoodDto> foodMap = fetchAndValidateFoods(foodIds);
         MealTemplate template = MealTemplate.builder()
                 .userId(userId)
                 .name(request.getName())
                 .build();
-        List<MealTemplateItem> items = createMealTemplateItems(request, template);
+        List<MealTemplateItem> items = request.getItems().stream()
+                .map(dto -> buildItem(template, foodMap.get(dto.getFoodId()),
+                        dto.getAmount(), dto.getUnitType()))
+                .collect(Collectors.toList());
         template.setItems(items);
         return mealTemplateRepository.save(template).getId();
     }
@@ -93,14 +98,6 @@ public class MealService {
     }
 
     @Transactional
-    public void revertIntakeGroup(String mealGroupId, Long userId) {
-        log.info("Reverting intake group {} for user {}", mealGroupId, userId);
-        intakeRepository.findFirstByMealGroupIdAndUserId(mealGroupId, userId)
-                .ifPresent(intake -> manualEvictUserIntakes(userId, intake.getDate()));
-        intakeRepository.deleteByMealGroupIdAndUserId(mealGroupId, userId);
-    }
-
-    @Transactional
     @CacheEvict(value = CacheConstants.MEAL_TEMPLATES, key = "#userId")
     public void deleteTemplate(Long templateId, Long userId) {
         log.info("Deleting template id={} for userId={}", templateId, userId);
@@ -112,144 +109,82 @@ public class MealService {
 
     @Transactional
     @CacheEvict(value = CacheConstants.MEAL_TEMPLATES, key = "#userId")
-    public void updateTemplate(Long templateId, MealTemplateRequestDto request, Long userId) {
+    public void updateTemplate(Long templateId, UpdateMealTemplateDto request, Long userId) {
         log.info("Updating template id={} for userId={}", templateId, userId);
         MealTemplate template = mealTemplateRepository.findByIdAndUserId(templateId, userId)
                 .orElseThrow(() -> new NotFoundException(IntakeErrorCode.INTAKE_NOT_FOUND,
                         "Template not found"));
-        template.setName(request.getName());
-        Map<String, MealTemplateRequestDto.TemplateItemDto> incomingItemsMap = request
-                .getItems().stream()
-                .collect(Collectors.toMap(
-                        MealTemplateRequestDto.TemplateItemDto::getFoodId,
-                        item -> item
-                ));
-        removeDeletedItems(template, incomingItemsMap);
-
-        Set<String> idsToFetch = new HashSet<>();
-        Set<String> existingIds = template.getItems().stream()
-                .map(MealTemplateItem::getFoodId)
-                .collect(Collectors.toSet());
-        incomingItemsMap.keySet().stream()
-                .filter(id -> !existingIds.contains(id))
-                .forEach(idsToFetch::add);
-        for (MealTemplateItem item : template.getItems()) {
-            var incoming = incomingItemsMap.get(item.getFoodId());
-            if (incoming != null && item.getUnitType() != incoming.getUnitType()) {
-                idsToFetch.add(item.getFoodId());
-            }
+        if (request.getName() != null) {
+            template.setName(request.getName());
         }
-        Map<String, FoodDto> foodMap = new HashMap<>();
-        if (!idsToFetch.isEmpty()) {
-            List<FoodDto> foods = foodClientService.getFoodsByIds(new ArrayList<>(idsToFetch));
-            validateAllFoodsFound(new ArrayList<>(idsToFetch), foods);
-            foodMap = foods.stream().collect(Collectors.toMap(FoodDto::getId, f -> f));
-        }
-
-        updateExistingItems(template, incomingItemsMap, foodMap);
-        addNewItems(template, incomingItemsMap, foodMap);
+        Map<String, FoodDto> newFoodsMap = resolveNewFoods(request.getItems(), template);
+        syncTemplateItems(template, request.getItems(), newFoodsMap);
         mealTemplateRepository.save(template);
+        log.debug("Meal template updated successfully id={} userId={}", templateId, userId);
     }
 
-    private void addNewItems(MealTemplate template,
-                             Map<String, MealTemplateRequestDto.TemplateItemDto> incomingItemsMap,
-                             Map<String, FoodDto> foodMap) {
+    private Map<String, FoodDto> resolveNewFoods(
+            List<UpdateMealTemplateDto.TemplateItemDto> dtos, MealTemplate template) {
         Set<String> existingIds = template.getItems().stream()
                 .map(MealTemplateItem::getFoodId)
                 .collect(Collectors.toSet());
-        List<String> newIds = incomingItemsMap.keySet().stream()
+        List<String> newIds = dtos.stream()
+                .map(UpdateMealTemplateDto.TemplateItemDto::getFoodId)
                 .filter(id -> !existingIds.contains(id))
+                .distinct()
                 .toList();
-        for (String foodId : newIds) {
-            FoodDto food = foodMap.get(foodId);
-            var incomingItem = incomingItemsMap.get(food.getId());
-            validateUnitSupported(food, incomingItem.getUnitType());
-            MealTemplateItem newItem = createNewItem(template, food, incomingItem);
-            template.getItems().add(newItem);
+        return fetchAndValidateFoods(newIds);
+    }
+
+    private void syncTemplateItems(MealTemplate template,
+                                   List<UpdateMealTemplateDto.TemplateItemDto> dtos,
+                                   Map<String, FoodDto> newFoodsMap) {
+        Map<String, UpdateMealTemplateDto.TemplateItemDto> incomingMap = dtos.stream()
+                .collect(Collectors.toMap(UpdateMealTemplateDto.TemplateItemDto::getFoodId,
+                        item -> item, (oldV, newV) -> oldV));
+        template.getItems().removeIf(item -> !incomingMap.containsKey(item.getFoodId()));
+        for (UpdateMealTemplateDto.TemplateItemDto dto : dtos) {
+            template.getItems().stream()
+                    .filter(item -> item.getFoodId().equals(dto.getFoodId()))
+                    .findFirst()
+                    .ifPresentOrElse(
+                            existing -> updateItemState(existing, dto),
+                            () -> {
+                                validateNewItemFields(dto);
+                                template.getItems().add(buildItem(
+                                        template, newFoodsMap.get(dto.getFoodId()),
+                                        dto.getAmount(), dto.getUnitType())
+                                );
+                            });
         }
     }
 
-    private MealTemplateItem createNewItem(MealTemplate template, FoodDto food,
-                                           MealTemplateRequestDto.TemplateItemDto incomingItem) {
-        NutrientCalculationStrategy strategy = strategyFactory
-                .getStrategy(incomingItem.getUnitType());
-        Nutriments calculatedNutriments = nutrimentsMapper.fromFoodNutriments(food.getNutriments());
-        strategy.calculate(calculatedNutriments, incomingItem.getAmount());
-        return MealTemplateItem.builder()
-                .template(template)
-                .foodId(food.getId())
-                .foodName(food.getProductName())
-                .amount(incomingItem.getAmount())
-                .unitType(incomingItem.getUnitType())
-                .nutriments(calculatedNutriments)
-                .build();
-    }
-
-    private void updateExistingItems(MealTemplate template,
-                                     Map<String, MealTemplateRequestDto
-                                             .TemplateItemDto> incomingItemsMap,
-                                     Map<String, FoodDto> foodMap) {
-        for (MealTemplateItem item : template.getItems()) {
-            var incomingItem = incomingItemsMap.get(item.getFoodId());
-            boolean amountChanged = item.getAmount() != incomingItem.getAmount();
-            boolean unitTypeChanged = item.getUnitType() != incomingItem.getUnitType();
-            if (amountChanged || unitTypeChanged) {
-                if (unitTypeChanged) {
-                    FoodDto food = foodMap.get(item.getFoodId());
-                    validateUnitSupported(food, incomingItem.getUnitType());
-                    item.setUnitType(incomingItem.getUnitType());
-                }
-                NutrientCalculationStrategy strategy = strategyFactory
-                        .getStrategy(incomingItem.getUnitType());
-                strategy.recalculateItem(item, incomingItem.getAmount());
-            }
+    private void updateItemState(MealTemplateItem item,
+                                 UpdateMealTemplateDto.TemplateItemDto dto) {
+        boolean changed = false;
+        if (dto.getAmount() != null && !dto.getAmount().equals(item.getAmount())) {
+            item.setAmount(dto.getAmount());
+            changed = true;
+        }
+        if (dto.getUnitType() != null && dto.getUnitType() != item.getUnitType()) {
+            NutrientUtils.validateUnitType(dto.getUnitType(), item.getNutriments());
+            item.setUnitType(dto.getUnitType());
+            changed = true;
+        }
+        if (changed) {
+            strategyFactory.getStrategy(item.getUnitType())
+                    .calculate(item.getNutriments(), item.getAmount());
         }
     }
 
-    private void validateUnitSupported(FoodDto food, UnitType requestedUnit) {
-        if (food.getAvailableUnits() == null || !food.getAvailableUnits().contains(requestedUnit)) {
+    private void validateNewItemFields(UpdateMealTemplateDto.TemplateItemDto dto) {
+        if (dto.getAmount() == null) {
             throw new BadRequestException(CommonErrorCode.VALIDATION_ERROR,
-                    String.format(
-                            "Food '%s' does not support unit type %s. Available types: %s",
-                            food.getProductName(),
-                            requestedUnit,
-                            food.getAvailableUnits()));
+                    "Amount is required for new template item: " + dto.getFoodId());
         }
-    }
-
-    private void validateAllFoodsFound(List<String> requestedIds, List<FoodDto> foundFoods) {
-        if (foundFoods == null) {
-            throw new NotFoundException(FoodErrorCode.FOOD_NOT_FOUND,
-                    "Food service returned no data");
-        }
-        if (foundFoods.size() != requestedIds.size()) {
-            Set<String> foundIds = foundFoods.stream()
-                    .map(FoodDto::getId)
-                    .collect(Collectors.toSet());
-            List<String> missingIds = requestedIds.stream()
-                    .filter(id -> !foundIds.contains(id))
-                    .toList();
-            log.error("Consistency error: Requested foods {} but missing {}",
-                    requestedIds, missingIds);
-            throw new NotFoundException(FoodErrorCode.FOOD_NOT_FOUND,
-                    "Foods not found with ids: " + String.join(", ", missingIds));
-        }
-    }
-
-    private void removeDeletedItems(MealTemplate template, Map<String,
-            MealTemplateRequestDto.TemplateItemDto> incomingItemsMap) {
-        template.getItems().removeIf(item -> !incomingItemsMap.containsKey(item.getFoodId()));
-    }
-
-    private void manualEvictUserIntakes(Long userId, LocalDate date) {
-        String key = userId + ":" + date;
-        try {
-            Cache cache = cacheManager.getCache(CacheConstants.USER_INTAKES);
-            if (cache != null) {
-                cache.evict(key);
-            }
-        } catch (Exception e) {
-            log.error("Failed to evict cache for key {}", key, e);
+        if (dto.getUnitType() == null) {
+            throw new BadRequestException(CommonErrorCode.VALIDATION_ERROR,
+                    "UnitType is required for new template item: " + dto.getFoodId());
         }
     }
 
@@ -272,42 +207,38 @@ public class MealService {
         return intakes;
     }
 
-    private List<MealTemplateItem> createMealTemplateItems(
-            MealTemplateRequestDto request, MealTemplate template) {
-        List<String> foodIds = request.getItems().stream()
-                .map(MealTemplateRequestDto.TemplateItemDto::getFoodId)
-                .toList();
-        List<FoodDto> foods = foodClientService.getFoodsByIds(foodIds);
-        Map<String, MealTemplateRequestDto.TemplateItemDto> requestItemsMap = request
-                .getItems().stream()
-                .collect(Collectors.toMap(
-                        MealTemplateRequestDto.TemplateItemDto::getFoodId,
-                        item -> item,
-                        (existing, replacement) -> existing
-                ));
-        List<MealTemplateItem> meals = new ArrayList<>();
-        for (FoodDto food : foods) {
-            MealTemplateRequestDto.TemplateItemDto requestItem = requestItemsMap
-                    .get(food.getId());
-            if (requestItem == null) {
-                continue;
-            }
-            int amount = requestItem.getAmount();
-            UnitType unitType = requestItem.getUnitType();
-            NutrientCalculationStrategy strategy = strategyFactory.getStrategy(unitType);
-            Nutriments calculatedNutriments = nutrimentsMapper
-                    .fromFoodNutriments(food.getNutriments());
-            strategy.calculate(calculatedNutriments, amount);
-            MealTemplateItem mealTemplateItem = MealTemplateItem.builder()
-                    .template(template)
-                    .foodId(food.getId())
-                    .amount(amount)
-                    .unitType(unitType)
-                    .nutriments(calculatedNutriments)
-                    .foodName(food.getProductName())
-                    .build();
-            meals.add(mealTemplateItem);
+    private Map<String, FoodDto> fetchAndValidateFoods(List<String> foodIds) {
+        if (foodIds.isEmpty()) {
+            return Collections.emptyMap();
         }
-        return meals;
+        List<String> uniqueIds = foodIds.stream().distinct().toList();
+        List<FoodDto> foods = foodClientService.getFoodsByIds(uniqueIds);
+        if (foods.size() != uniqueIds.size()) {
+            Set<String> foundIds = foods.stream()
+                    .map(FoodDto::getId)
+                    .collect(Collectors.toSet());
+            List<String> missing = uniqueIds.stream()
+                    .filter(id -> !foundIds.contains(id))
+                    .toList();
+            throw new NotFoundException(FoodErrorCode.FOOD_NOT_FOUND,
+                    "Foods not found: " + missing);
+        }
+        return foods.stream().collect(Collectors.toMap(FoodDto::getId, f -> f));
+    }
+
+    private MealTemplateItem buildItem(MealTemplate template, FoodDto food,
+                                       Integer amount, UnitType unitType) {
+        NutrientUtils.validateUnitSupported(food, unitType);
+        NutrientCalculationStrategy strategy = strategyFactory.getStrategy(unitType);
+        Nutriments calculated = nutrimentsMapper.fromFoodNutriments(food.getNutriments());
+        strategy.calculate(calculated, amount);
+        return MealTemplateItem.builder()
+                .template(template)
+                .foodId(food.getId())
+                .foodName(food.getProductName())
+                .amount(amount)
+                .unitType(unitType)
+                .nutriments(calculated)
+                .build();
     }
 }

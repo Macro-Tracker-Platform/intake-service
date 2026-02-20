@@ -3,6 +3,7 @@ package com.olehprukhnytskyi.macrotrackerintakeservice.controller;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateResponseDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateMealTemplateDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.MealService;
 import com.olehprukhnytskyi.util.CustomHeaders;
 import com.olehprukhnytskyi.util.IntakePeriod;
@@ -31,7 +32,7 @@ import org.springframework.web.bind.annotation.RestController;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/meals")
+@RequestMapping("/api/meal-templates")
 @Tag(
         name = "Meal Templates API",
         description = "Manage reusable meal templates (grouping multiple food items)"
@@ -55,7 +56,7 @@ public class MealController {
     }
 
     @Operation(
-            summary = "Apply meal template",
+            summary = "Create meal template",
             description = """
             Create a reusable template (e.g., 'Morning Porridge')
             containing multiple food items.
@@ -94,27 +95,9 @@ public class MealController {
     }
 
     @Operation(
-            summary = "Undo/Revert template application",
-            description = """
-            Deletes a group of intake records created by a single template application.
-            Use the 'mealGroupId' returned from the apply endpoint.
-            """)
-    @DeleteMapping("/{mealGroupId}")
-    public ResponseEntity<Void> undoMealTemplate(
-            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
-            @Parameter(description = "UUID string identifying the batch of records",
-                    required = true)
-            @PathVariable String mealGroupId) {
-        log.info("Request to revert intake group {} for userId={}", mealGroupId, userId);
-        mealService.revertIntakeGroup(mealGroupId, userId);
-        log.debug("Intake group {} reverted successfully", mealGroupId);
-        return ResponseEntity.noContent().build();
-    }
-
-    @Operation(
             summary = "Delete meal template",
             description = "Permanently deletes a created meal template.")
-    @DeleteMapping("/template/{templateId}")
+    @DeleteMapping("/{templateId}")
     public ResponseEntity<Void> deleteTemplate(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
             @Parameter(description = "ID of the template to delete", required = true)
@@ -131,11 +114,11 @@ public class MealController {
             Updates an existing template: renames it, changes amounts,
             adds new items or removes existing ones.
             """)
-    @PutMapping("/templates/{templateId}")
+    @PutMapping("/{templateId}")
     public ResponseEntity<Void> updateTemplate(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
             @PathVariable Long templateId,
-            @Valid @RequestBody MealTemplateRequestDto request) {
+            @Valid @RequestBody UpdateMealTemplateDto request) {
         log.info("Request to update template id={} for userId={}", templateId, userId);
         mealService.updateTemplate(templateId, request, userId);
         log.debug("Template id={} updated successfully", templateId);

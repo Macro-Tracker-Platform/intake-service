@@ -6,6 +6,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -130,5 +131,19 @@ class IntakeServiceTest {
                 () -> intakeService.save(requestDto, userId));
 
         verify(intakeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Should undo intake group")
+    void undoIntakeGroup_shouldDelete() {
+        // Given
+        String groupId = "uuid-123";
+        Long userId = 1L;
+
+        // When
+        intakeService.undoIntakeGroup(groupId, userId);
+
+        // Then
+        verify(intakeRepository, times(1)).deleteByMealGroupIdAndUserId(groupId, userId);
     }
 }

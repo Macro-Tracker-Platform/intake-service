@@ -29,6 +29,7 @@ import com.olehprukhnytskyi.util.UnitType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -189,6 +190,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .date(LocalDate.now())
                 .foodName("Oatmeal")
                 .unitType(UnitType.GRAMS)
+                .availableUnits(List.of(UnitType.GRAMS))
                 .intakePeriod(IntakePeriod.SNACK)
                 .build();
 
@@ -231,6 +233,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         assertThat(intakeResponseDto)
                 .usingRecursiveComparison()
                 .ignoringFields("id")
+                .ignoringCollectionOrder()
                 .isEqualTo(responseDto);
         verify(foodClientService).getFoodById("food-1");
     }
@@ -340,6 +343,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .date(LocalDate.parse("2025-09-06"))
                 .unitType(intake.getUnitType())
                 .amount(requestDto.getAmount())
+                .availableUnits(List.of(UnitType.GRAMS, UnitType.PIECES))
                 .nutriments(nutrimentsMapper.toDto(intake.getNutriments()))
                 .intakePeriod(IntakePeriod.BREAKFAST)
                 .build();
@@ -377,9 +381,73 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         assertThat(intakeRepository.findById(intakeId)).isEmpty();
     }
 
+    @Test
+    @DisplayName("When valid groupId, should delete all intakes")
+    void undoIntakeGroup_whenValidGroupId_shouldDeleteBatch() throws Exception {
+        // Given
+        Long userId = 103L;
+        String groupIdToDelete = UUID.randomUUID().toString();
+        String otherGroupId = UUID.randomUUID().toString();
+
+        saveIntakeWithGroup(userId, groupIdToDelete);
+        saveIntakeWithGroup(userId, groupIdToDelete);
+
+        saveIntakeWithGroup(userId, otherGroupId);
+
+        assertThat(intakeRepository.findByUserId(userId).size()).isEqualTo(3);
+
+        // When
+        mockMvc.perform(
+                        delete("/api/intake/group/{mealGroupId}", groupIdToDelete)
+                                .header("X-User-Id", userId)
+                )
+                .andExpect(status().isNoContent());
+
+        // Then
+        List<Intake> remainingIntakes = intakeRepository.findByUserId(userId);
+        assertThat(remainingIntakes).hasSize(1);
+        assertThat(remainingIntakes.get(0).getMealGroupId()).isEqualTo(otherGroupId);
+    }
+
+    @Test
+    @DisplayName("When group belongs to another user, should NOT delete intake")
+    void undoIntakeGroup_whenGroupBelongsToAnotherUser_shouldNotDelete() throws Exception {
+        // Given
+        Long victimId = 100L;
+        String victimGroupId = UUID.randomUUID().toString();
+
+        Intake intake = new Intake();
+        intake.setUserId(victimId);
+        intake.setFoodId("apple");
+        intake.setMealGroupId(victimGroupId);
+        intake.setDate(LocalDate.now());
+        intake.setAmount(100);
+        intakeRepository.save(intake);
+
+        // When
+        mockMvc.perform(
+                        delete("/api/intake/group/{mealGroupId}", victimGroupId)
+                                .header("X-User-Id", 2L)
+                )
+                .andExpect(status().isNoContent());
+
+        // Then
+        assertThat(intakeRepository.findByUserId(victimId).size()).isEqualTo(1);
+    }
+
     private Intake getRandomIntakeFromDb() {
         return intakeRepository.findAll().stream()
                 .findFirst()
                 .orElseThrow();
+    }
+
+    private void saveIntakeWithGroup(Long userId, String groupId) {
+        Intake intake = new Intake();
+        intake.setUserId(userId);
+        intake.setFoodId("test-food");
+        intake.setDate(LocalDate.now());
+        intake.setMealGroupId(groupId);
+        intake.setAmount(100);
+        intakeRepository.save(intake);
     }
 }

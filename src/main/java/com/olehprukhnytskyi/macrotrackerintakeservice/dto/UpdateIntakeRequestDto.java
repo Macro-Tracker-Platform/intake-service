@@ -1,6 +1,7 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.dto;
 
 import com.olehprukhnytskyi.util.IntakePeriod;
+import com.olehprukhnytskyi.util.UnitType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import java.time.LocalDate;
@@ -21,7 +22,7 @@ public class UpdateIntakeRequestDto {
             minimum = "1"
     )
     @Min(1)
-    private int amount;
+    private Integer amount;
 
     @Schema(
             description = "Updated intake date (user's local date, yyyy-MM-dd)",
@@ -40,4 +41,6 @@ public class UpdateIntakeRequestDto {
             }
     )
     private IntakePeriod intakePeriod;
+
+    private UnitType unitType;
 }

@@ -4,6 +4,8 @@ import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.List;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -42,4 +44,7 @@ public class IntakeResponseDto {
     @Schema(description = "Calculated nutrition values for consumed amount")
     @Builder.Default
     private NutrimentsDto nutriments = new NutrimentsDto();
+
+    @Builder.Default
+    private List<UnitType> availableUnits = new ArrayList<>();
 }

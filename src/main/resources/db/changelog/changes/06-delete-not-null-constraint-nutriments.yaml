@@ -1,0 +1,146 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1770678756075-1
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: calories_per_100
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-2
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: calories_per_100
+            tableName: meal_template_item
+  - changeSet:
+      id: 1770678756075-3
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: calories_per_piece
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-4
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: calories_per_piece
+            tableName: meal_template_item
+  - changeSet:
+      id: 1770678756075-5
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: carbohydrates_per_100
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-6
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: carbohydrates_per_100
+            tableName: meal_template_item
+  - changeSet:
+      id: 1770678756075-7
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: carbohydrates_per_piece
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-8
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: carbohydrates_per_piece
+            tableName: meal_template_item
+  - changeSet:
+      id: 1770678756075-9
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: fat_per_100
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-10
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: fat_per_100
+            tableName: meal_template_item
+  - changeSet:
+      id: 1770678756075-11
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: fat_per_piece
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-12
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: fat_per_piece
+            tableName: meal_template_item
+  - changeSet:
+      id: 1770678756075-13
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: protein_per_100
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-14
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: protein_per_100
+            tableName: meal_template_item
+  - changeSet:
+      id: 1770678756075-15
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: protein_per_piece
+            tableName: intake
+  - changeSet:
+      id: 1770678756075-16
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - dropNotNullConstraint:
+            columnDataType: decimal
+            columnName: protein_per_piece
+            tableName: meal_template_item
+

@@ -7,6 +7,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.IntakeService;
 import com.olehprukhnytskyi.util.CustomHeaders;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
@@ -105,6 +106,24 @@ public class IntakeController {
         log.info("Deleting intake record id={} for userId={}", id, userId);
         intakeService.deleteById(id, userId);
         log.debug("Deleted intake record id={} for userId={}", id, userId);
+        return ResponseEntity.noContent().build();
+    }
+
+    @Operation(
+            summary = "Undo intake group",
+            description = """
+            Deletes a group of intake records created by a single template application.
+            Use the 'mealGroupId' returned from the apply endpoint.
+            """)
+    @DeleteMapping("/group/{mealGroupId}")
+    public ResponseEntity<Void> undoIntakeGroup(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @Parameter(description = "UUID string identifying the batch of records",
+                    required = true)
+            @PathVariable String mealGroupId) {
+        log.info("Request to revert intake group {} for userId={}", mealGroupId, userId);
+        intakeService.undoIntakeGroup(mealGroupId, userId);
+        log.debug("Intake group {} reverted successfully", mealGroupId);
         return ResponseEntity.noContent().build();
     }
 }

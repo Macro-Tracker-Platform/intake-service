@@ -45,7 +45,7 @@ public class MealTemplateItem {
     private Nutriments nutriments;
 
     @Column(nullable = false)
-    private int amount;
+    private Integer amount;
 
     @Builder.Default
     @Column(nullable = false)

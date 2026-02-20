@@ -3,7 +3,6 @@ package com.olehprukhnytskyi.macrotrackerintakeservice.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -22,10 +21,10 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.FoodClientService;
+import com.olehprukhnytskyi.util.UnitType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,8 +69,16 @@ class MealControllerTest extends AbstractIntegrationTest {
         MealTemplateRequestDto request = new MealTemplateRequestDto();
         request.setName("Morning Porridge");
         request.setItems(List.of(
-                MealTemplateRequestDto.TemplateItemDto.builder().foodId(foodId1).amount(50).build(),
-                MealTemplateRequestDto.TemplateItemDto.builder().foodId(foodId2).amount(200).build()
+                MealTemplateRequestDto.TemplateItemDto.builder()
+                        .foodId(foodId1)
+                        .unitType(UnitType.GRAMS)
+                        .amount(50)
+                        .build(),
+                MealTemplateRequestDto.TemplateItemDto.builder()
+                        .foodId(foodId2)
+                        .unitType(UnitType.GRAMS)
+                        .amount(200)
+                        .build()
         ));
 
         FoodDto oats = createMockFood(foodId1, "Oats", 350);
@@ -82,7 +89,7 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         // When
         String responseJson = mockMvc.perform(
-                        post("/api/meals")
+                        post("/api/meal-templates")
                                 .header("X-User-Id", 101L)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
@@ -112,6 +119,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         request.setItems(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
                 .foodId("f1")
                 .amount(100)
+                .unitType(UnitType.GRAMS)
                 .build()));
 
         given(foodClientService.getFoodsByIds(anyList()))
@@ -120,7 +128,7 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         // When
         mockMvc.perform(
-                        post("/api/meals")
+                        post("/api/meal-templates")
                                 .header("X-User-Id", 1L)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
@@ -146,7 +154,7 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         // When
         mockMvc.perform(
-                        post("/api/meals")
+                        post("/api/meal-templates")
                                 .header("X-User-Id", 1L)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
@@ -164,7 +172,7 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         // When
         mockMvc.perform(
-                        post("/api/meals")
+                        post("/api/meal-templates")
                                 .header("X-User-Id", 1L)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
@@ -183,7 +191,7 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         // When
         mockMvc.perform(
-                        post("/api/meals/{templateId}/apply", template.getId())
+                        post("/api/meal-templates/{templateId}/apply", template.getId())
                                 .header("X-User-Id", attackerId)
                                 .param("date", LocalDate.now().toString())
                 )
@@ -205,7 +213,7 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         // When
         mockMvc.perform(
-                        post("/api/meals/{templateId}/apply", templateId)
+                        post("/api/meal-templates/{templateId}/apply", templateId)
                                 .header("X-User-Id", userId)
                                 .param("date", date.toString())
                                 .param("period", "LUNCH")
@@ -234,65 +242,11 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         // When & Then
         mockMvc.perform(
-                        post("/api/meals/{templateId}/apply", wrongId)
+                        post("/api/meal-templates/{templateId}/apply", wrongId)
                                 .header("X-User-Id", userId)
                                 .param("date", LocalDate.now().toString())
                 )
                 .andExpect(status().isNotFound());
-    }
-
-    @Test
-    @DisplayName("When valid groupId, should delete all intakes")
-    void revertIntakeGroup_whenValidGroupId_shouldDeleteBatch() throws Exception {
-        // Given
-        Long userId = 103L;
-        String groupIdToDelete = UUID.randomUUID().toString();
-        String otherGroupId = UUID.randomUUID().toString();
-
-        saveIntakeWithGroup(userId, groupIdToDelete);
-        saveIntakeWithGroup(userId, groupIdToDelete);
-
-        saveIntakeWithGroup(userId, otherGroupId);
-
-        assertThat(intakeRepository.count()).isEqualTo(3);
-
-        // When
-        mockMvc.perform(
-                        delete("/api/meals/{mealGroupId}", groupIdToDelete)
-                                .header("X-User-Id", userId)
-                )
-                .andExpect(status().isNoContent());
-
-        // Then
-        List<Intake> remainingIntakes = intakeRepository.findAll();
-        assertThat(remainingIntakes).hasSize(1);
-        assertThat(remainingIntakes.get(0).getMealGroupId()).isEqualTo(otherGroupId);
-    }
-
-    @Test
-    @DisplayName("When group belongs to another user, should NOT delete intake")
-    void revertIntakeGroup_whenGroupBelongsToAnotherUser_shouldNotDelete() throws Exception {
-        // Given
-        Long victimId = 1L;
-        String victimGroupId = UUID.randomUUID().toString();
-
-        Intake intake = new Intake();
-        intake.setUserId(victimId);
-        intake.setFoodId("apple");
-        intake.setMealGroupId(victimGroupId);
-        intake.setDate(LocalDate.now());
-        intake.setAmount(100);
-        intakeRepository.save(intake);
-
-        // When
-        mockMvc.perform(
-                        delete("/api/meals/{mealGroupId}", victimGroupId)
-                                .header("X-User-Id", 2L)
-                )
-                .andExpect(status().isNoContent());
-
-        // Then
-        assertThat(intakeRepository.findByUserId(victimId).size()).isEqualTo(1);
     }
 
     private FoodDto createMockFood(String id, String name, double kcal) {
@@ -306,6 +260,7 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .id(id)
                 .productName(name)
                 .nutriments(nutriments)
+                .availableUnits(List.of(UnitType.GRAMS))
                 .build();
     }
 
@@ -339,15 +294,5 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         template.setItems(List.of(item1, item2));
         return mealTemplateRepository.save(template);
-    }
-
-    private void saveIntakeWithGroup(Long userId, String groupId) {
-        Intake intake = new Intake();
-        intake.setUserId(userId);
-        intake.setFoodId("test-food");
-        intake.setDate(LocalDate.now());
-        intake.setMealGroupId(groupId);
-        intake.setAmount(100);
-        intakeRepository.save(intake);
     }
 }

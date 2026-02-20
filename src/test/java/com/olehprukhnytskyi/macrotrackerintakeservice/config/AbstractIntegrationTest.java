@@ -14,7 +14,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 public abstract class AbstractIntegrationTest {
     @Container
-    private static final GenericContainer<?> redisContainer = new GenericContainer<>("redis:8")
+    private static final GenericContainer<?> redisContainer = new GenericContainer<>(
+            "redis:7-alpine")
             .withExposedPorts(6379);
 
     @Autowired
@@ -28,6 +29,11 @@ public abstract class AbstractIntegrationTest {
 
     @BeforeEach
     void cleanExternalServices() {
-        redisTemplate.getConnectionFactory().getConnection().flushAll();
+        if (redisTemplate.getConnectionFactory() != null) {
+            redisTemplate.getConnectionFactory()
+                    .getConnection()
+                    .serverCommands()
+                    .flushDb();
+        }
     }
 }
