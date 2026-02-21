@@ -255,6 +255,10 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .carbohydrates(BigDecimal.TEN)
                 .fat(BigDecimal.TEN)
                 .protein(BigDecimal.TEN)
+                .caloriesPer100(BigDecimal.valueOf(kcal))
+                .carbohydratesPer100(BigDecimal.TEN)
+                .fatPer100(BigDecimal.TEN)
+                .proteinPer100(BigDecimal.TEN)
                 .build();
         return FoodDto.builder()
                 .id(id)
