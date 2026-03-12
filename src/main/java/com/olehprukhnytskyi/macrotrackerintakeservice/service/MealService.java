@@ -199,6 +199,7 @@ public class MealService {
             intake.setFoodId(item.getFoodId());
             intake.setFoodName(item.getFoodName());
             intake.setDate(date);
+            intake.setUnitType(item.getUnitType());
             intake.setIntakePeriod(period != null ? period : IntakePeriod.SNACK);
             intake.setAmount(item.getAmount());
             intake.setNutriments(nutrimentsMapper.clone(item.getNutriments()));
