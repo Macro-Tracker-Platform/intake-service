@@ -203,6 +203,9 @@ public class MealService {
             intake.setIntakePeriod(period != null ? period : IntakePeriod.SNACK);
             intake.setAmount(item.getAmount());
             intake.setNutriments(nutrimentsMapper.clone(item.getNutriments()));
+            intake.setOriginalFoodId(item.getOriginalFoodId());
+            intake.setModerationStatus(item.getModerationStatus());
+            intake.setVerifiedByAdmin(item.isVerifiedByAdmin());
             intakes.add(intake);
         }
         return intakes;
@@ -240,6 +243,9 @@ public class MealService {
                 .amount(amount)
                 .unitType(unitType)
                 .nutriments(calculated)
+                .originalFoodId(food.getOriginalFoodId())
+                .moderationStatus(food.getModerationStatus())
+                .verifiedByAdmin(food.isVerifiedByAdmin())
                 .build();
     }
 }
