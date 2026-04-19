@@ -15,3 +15,5 @@ databaseChangeLog:
       file: db/changelog/changes/06-delete-not-null-constraint-nutriments.yaml
   - include:
       file: db/changelog/changes/07-delete-not-null-constraint-meal-template-nutriments.yaml
+  - include:
+      file: db/changelog/changes/08-add-moderation-columns.yaml

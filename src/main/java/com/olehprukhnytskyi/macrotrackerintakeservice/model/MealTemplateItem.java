@@ -51,4 +51,11 @@ public class MealTemplateItem {
     @Column(nullable = false)
     @Enumerated(EnumType.STRING)
     private UnitType unitType = UnitType.GRAMS;
+
+    private String originalFoodId;
+
+    private String moderationStatus;
+
+    @Builder.Default
+    private boolean verifiedByAdmin = false;
 }

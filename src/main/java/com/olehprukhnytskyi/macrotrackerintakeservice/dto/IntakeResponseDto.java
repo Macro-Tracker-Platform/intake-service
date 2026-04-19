@@ -53,4 +53,10 @@ public class IntakeResponseDto {
 
     @Builder.Default
     private List<UnitType> availableUnits = new ArrayList<>();
+
+    private String originalFoodId;
+
+    private String moderationStatus;
+
+    private boolean verifiedByAdmin;
 }

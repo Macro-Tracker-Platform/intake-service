@@ -1,0 +1,78 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1776612015554-1
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addColumn:
+            columns:
+              - column:
+                  name: moderation_status
+                  type: VARCHAR(255)
+              - column:
+                  name: original_food_id
+                  type: VARCHAR(255)
+              - column:
+                  name: verified_by_admin
+                  type: BOOLEAN
+            tableName: intake
+  - changeSet:
+      id: 1776612015554-2
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addColumn:
+            columns:
+              - column:
+                  name: moderation_status
+                  type: VARCHAR(255)
+              - column:
+                  name: original_food_id
+                  type: VARCHAR(255)
+              - column:
+                  name: verified_by_admin
+                  type: BOOLEAN
+            tableName: meal_template_item
+  - changeSet:
+      id: 1776612015554-6
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - update:
+            tableName: intake
+            columns:
+              - column:
+                  name: verified_by_admin
+                  valueBoolean: "false"
+            where: "verified_by_admin IS NULL"
+        - addNotNullConstraint:
+            columnName: verified_by_admin
+            tableName: intake
+  - changeSet:
+      id: 1776612015554-8
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - update:
+            tableName: meal_template_item
+            columns:
+              - column:
+                  name: verified_by_admin
+                  valueBoolean: "false"
+            where: "verified_by_admin IS NULL"
+        - addNotNullConstraint:
+            columnName: verified_by_admin
+            tableName: meal_template_item
+  - changeSet:
+      id: 1776612015554-9
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addDefaultValue:
+            columnName: verified_by_admin
+            tableName: intake
+            defaultValueBoolean: false
+        - addDefaultValue:
+            columnName: verified_by_admin
+            tableName: meal_template_item
+            defaultValueBoolean: false

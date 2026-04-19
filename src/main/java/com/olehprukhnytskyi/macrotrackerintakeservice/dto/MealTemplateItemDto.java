@@ -24,4 +24,10 @@ public class MealTemplateItemDto {
             example = "[\"GRAMS\", \"PIECES\"]"
     )
     private List<UnitType> availableUnits;
+
+    private String originalFoodId;
+
+    private String moderationStatus;
+
+    private boolean verifiedByAdmin;
 }
