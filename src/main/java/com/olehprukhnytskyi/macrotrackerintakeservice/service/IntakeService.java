@@ -53,7 +53,8 @@ public class IntakeService {
     @Transactional
     public IntakeResponseDto save(IntakeRequestDto intakeRequest, Long userId) {
         log.info("Saving intake for userId={}", userId);
-        FoodDto food = fetchFoodSafe(intakeRequest.getFoodId(), userId);
+        FoodDto food = fetchFoodSafe(intakeRequest.getFoodId(),
+                intakeRequest.getOriginalFoodId(), userId);
         UnitType unitType = resolveUnitType(intakeRequest.getUnitType());
         NutrientUtils.validateUnitSupported(food, unitType);
         Intake intake = createIntakeEntity(intakeRequest, userId, food, unitType);
@@ -160,11 +161,17 @@ public class IntakeService {
         return requested != null ? requested : UnitType.GRAMS;
     }
 
-    private FoodDto fetchFoodSafe(String foodId, Long userId) {
+    private FoodDto fetchFoodSafe(String foodId, String originalFoodId, Long userId) {
         try {
             return foodClientService.getFoodById(foodId);
         } catch (FeignException.NotFound ex) {
-            log.warn("Food not found for foodId={} userId={}", foodId, userId);
+            if (originalFoodId != null) {
+                try {
+                    return foodClientService.getFoodById(originalFoodId);
+                } catch (FeignException.NotFound fallbackEx) {
+                    log.warn("Neither foodId nor originalFoodId found for userId={}", userId);
+                }
+            }
             throw new NotFoundException(FoodErrorCode.FOOD_NOT_FOUND, "Food not found");
         } catch (FeignException ex) {
             log.error("Food service unavailable userId={} foodId={}", userId, foodId);

@@ -26,6 +26,12 @@ public class IntakeRequestDto {
     private String foodId;
 
     @Schema(
+            description = "Original food product ID",
+            example = "507f1f77bcf86cd799439011"
+    )
+    private String originalFoodId;
+
+    @Schema(
             description = "Consumed amount in grams",
             example = "150",
             requiredMode = Schema.RequiredMode.REQUIRED,
