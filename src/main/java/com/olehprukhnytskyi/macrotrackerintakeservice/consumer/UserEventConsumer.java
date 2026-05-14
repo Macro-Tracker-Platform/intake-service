@@ -1,7 +1,5 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.consumer;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.olehprukhnytskyi.event.UserDeletedEvent;
 import com.olehprukhnytskyi.exception.EventProcessingException;
 import com.olehprukhnytskyi.exception.error.EventErrorCode;
@@ -16,18 +14,9 @@ import org.springframework.stereotype.Service;
 @RequiredArgsConstructor
 public class UserEventConsumer {
     private final IntakeService intakeService;
-    private final ObjectMapper objectMapper;
 
     @KafkaListener(topics = "user-deleted", groupId = "intake-service")
-    public void handleUserDeleted(String message) {
-        UserDeletedEvent event;
-        try {
-            event = objectMapper.readValue(message, UserDeletedEvent.class);
-        } catch (JsonProcessingException e) {
-            log.error("Invalid user-deleted event payload. Message: {}", message, e);
-            throw new EventProcessingException(EventErrorCode.EVENT_DESERIALIZATION_FAILED,
-                    "Failed to parse user-deleted event", e);
-        }
+    public void handleUserDeleted(UserDeletedEvent event) {
         try {
             log.info("Processing user-deleted event for userId={}", event.getUserId());
             intakeService.deleteUserIntakesRecursively(event.getUserId());
