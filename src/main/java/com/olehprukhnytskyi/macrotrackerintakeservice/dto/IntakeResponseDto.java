@@ -27,6 +27,12 @@ public class IntakeResponseDto {
     private String mealGroupId;
 
     @Schema(
+            description = "Name of the meal template used to create the intake group",
+            example = "Morning Porridge"
+    )
+    private String mealTemplateName;
+
+    @Schema(
             description = "Food product ID",
             example = "507f1f77bcf86cd799439011"
     )

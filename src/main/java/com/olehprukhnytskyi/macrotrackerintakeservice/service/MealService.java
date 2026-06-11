@@ -90,7 +90,7 @@ public class MealService {
                         "Template not found"));
         String batchId = UUID.randomUUID().toString();
         List<Intake> newIntakes = createIntakesFromTemplateItem(
-                template.getItems(), date, period, userId, batchId);
+                template.getItems(), template.getName(), date, period, userId, batchId);
         List<Intake> savedIntakes = intakeRepository.saveAll(newIntakes);
         log.debug("Applied template '{}', created {} intake records",
                 template.getName(), savedIntakes.size());
@@ -189,12 +189,14 @@ public class MealService {
     }
 
     private List<Intake> createIntakesFromTemplateItem(List<MealTemplateItem> items,
-                                                       LocalDate date, IntakePeriod period,
-                                                       Long userId, String batchId) {
+                                                       String templateName, LocalDate date,
+                                                       IntakePeriod period, Long userId,
+                                                       String batchId) {
         List<Intake> intakes = new ArrayList<>();
         for (MealTemplateItem item : items) {
             Intake intake = new Intake();
             intake.setMealGroupId(batchId);
+            intake.setMealTemplateName(templateName);
             intake.setUserId(userId);
             intake.setFoodId(item.getFoodId());
             intake.setFoodName(item.getFoodName());

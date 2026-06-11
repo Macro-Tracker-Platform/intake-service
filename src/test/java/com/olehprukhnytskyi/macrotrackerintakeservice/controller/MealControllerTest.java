@@ -3,6 +3,7 @@ package com.olehprukhnytskyi.macrotrackerintakeservice.controller;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -198,7 +199,7 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .andExpect(status().isNotFound());
 
         // Then
-        assertThat(intakeRepository.count()).isZero();
+        assertThat(intakeRepository.findByUserId(attackerId)).isEmpty();
     }
 
     @Test
@@ -222,15 +223,27 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(2))
                 .andExpect(jsonPath("$[0].mealGroupId").exists())
+                .andExpect(jsonPath("$[0].mealTemplateName").value("Lunch Box"))
                 .andExpect(jsonPath("$[0].date").value(date.toString()));
 
         // Then
-        List<Intake> intakes = intakeRepository.findAll();
+        List<Intake> intakes = intakeRepository.findByUserIdAndDate(userId, date);
         assertThat(intakes).hasSize(2);
         assertThat(intakes.get(0).getMealGroupId()).isNotNull();
         assertThat(intakes.get(0).getMealGroupId()).isEqualTo(intakes.get(1).getMealGroupId());
+        assertThat(intakes)
+                .extracting(Intake::getMealTemplateName)
+                .containsOnly("Lunch Box");
         assertThat(intakes.get(0).getNutriments().getCaloriesPer100())
                 .isGreaterThan(BigDecimal.ZERO);
+
+        mockMvc.perform(
+                        get("/api/intake")
+                                .header("X-User-Id", userId)
+                                .param("date", date.toString())
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].mealTemplateName").value("Lunch Box"));
     }
 
     @Test

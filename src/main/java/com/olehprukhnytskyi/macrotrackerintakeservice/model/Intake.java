@@ -30,6 +30,8 @@ public class Intake {
 
     private String mealGroupId;
 
+    private String mealTemplateName;
+
     @Column(nullable = false)
     private Long userId;
 

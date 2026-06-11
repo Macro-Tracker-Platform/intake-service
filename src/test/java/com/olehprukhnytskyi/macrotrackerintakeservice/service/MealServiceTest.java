@@ -159,6 +159,7 @@ class MealServiceTest {
         MealTemplate template = MealTemplate.builder()
                 .id(templateId)
                 .userId(userId)
+                .name("Lunch Box")
                 .items(List.of(item))
                 .build();
 
@@ -181,6 +182,7 @@ class MealServiceTest {
 
         Intake savedIntake = savedIntakes.getFirst();
         assertThat(savedIntake.getMealGroupId()).isNotNull();
+        assertThat(savedIntake.getMealTemplateName()).isEqualTo("Lunch Box");
         assertThat(savedIntake.getAmount()).isEqualTo(50);
         assertThat(savedIntake.getFoodName()).isEqualTo("Rice");
         assertThat(savedIntake.getNutriments().getCalories())
