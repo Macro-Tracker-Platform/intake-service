@@ -13,6 +13,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -64,9 +65,10 @@ public class MealController {
     @PostMapping
     public ResponseEntity<Long> createMealTemplate(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(CustomHeaders.X_REQUEST_ID) UUID requestId,
             @Valid @RequestBody MealTemplateRequestDto request) {
         log.info("Request to create template '{}' for userId={}", request.getName(), userId);
-        Long templateId = mealService.createTemplate(request, userId);
+        Long templateId = mealService.createTemplate(request, userId, requestId);
         log.debug("Template created id={} for userId={}", templateId, userId);
         return ResponseEntity.status(HttpStatus.CREATED).body(templateId);
     }

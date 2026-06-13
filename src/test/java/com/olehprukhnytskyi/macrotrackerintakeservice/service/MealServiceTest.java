@@ -31,6 +31,7 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -58,6 +59,24 @@ class MealServiceTest {
 
     @InjectMocks
     private MealService mealService;
+
+    @Test
+    @DisplayName("When request id already exists, should return persisted template")
+    void createTemplate_whenRequestIdExists_shouldReturnPersistedTemplate() {
+        UUID requestId = UUID.randomUUID();
+        MealTemplateRequestDto request = new MealTemplateRequestDto();
+        MealTemplate existing = MealTemplate.builder().id(10L).userId(1L)
+                .requestId(requestId).build();
+
+        when(mealTemplateRepository.findByUserIdAndRequestId(1L, requestId))
+                .thenReturn(Optional.of(existing));
+
+        Long result = mealService.createTemplate(request, 1L, requestId);
+
+        assertThat(result).isEqualTo(10L);
+        verify(foodClientService, never()).getFoodsByIds(anyList());
+        verify(mealTemplateRepository, never()).saveAndFlush(any());
+    }
 
     @Test
     @DisplayName("When valid request, should create template")
@@ -88,20 +107,22 @@ class MealServiceTest {
 
         MealTemplate savedTemplateMock = mock(MealTemplate.class);
         when(savedTemplateMock.getId()).thenReturn(10L);
-        when(mealTemplateRepository.save(any(MealTemplate.class)))
+        when(mealTemplateRepository.saveAndFlush(any(MealTemplate.class)))
                 .thenReturn(savedTemplateMock);
+        UUID requestId = UUID.randomUUID();
 
         // When
-        Long resultId = mealService.createTemplate(request, 1L);
+        Long resultId = mealService.createTemplate(request, 1L, requestId);
 
         // Then
         assertThat(resultId).isEqualTo(10L);
 
         ArgumentCaptor<MealTemplate> captor = ArgumentCaptor.forClass(MealTemplate.class);
-        verify(mealTemplateRepository).save(captor.capture());
+        verify(mealTemplateRepository).saveAndFlush(captor.capture());
 
         MealTemplate captured = captor.getValue();
         assertThat(captured.getName()).isEqualTo("My Breakfast");
+        assertThat(captured.getRequestId()).isEqualTo(requestId);
         assertThat(captured.getItems()).hasSize(1);
         assertThat(captured.getItems().get(0).getFoodName()).isEqualTo("Oats");
         assertThat(captured.getItems().get(0).getAmount()).isEqualTo(100);
@@ -134,8 +155,8 @@ class MealServiceTest {
 
         // When & Then
         assertThrows(NotFoundException.class, () ->
-                mealService.createTemplate(request, 1L));
-        verify(mealTemplateRepository, never()).save(any());
+                mealService.createTemplate(request, 1L, UUID.randomUUID()));
+        verify(mealTemplateRepository, never()).saveAndFlush(any());
     }
 
     @Test

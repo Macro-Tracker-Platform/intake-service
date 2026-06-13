@@ -66,6 +66,18 @@ public class IntakeRequestDto {
     )
     private IntakePeriod intakePeriod;
 
+    @Schema(
+            description = "ID grouping multiple foods consumed in one meal",
+            example = "987fc3-a1b2-44"
+    )
+    private String mealGroupId;
+
+    @Schema(
+            description = "Name of the meal template used to create the intake group",
+            example = "Morning Porridge"
+    )
+    private String mealTemplateName;
+
     public IntakeRequestDto(String foodId) {
         this.foodId = foodId;
     }

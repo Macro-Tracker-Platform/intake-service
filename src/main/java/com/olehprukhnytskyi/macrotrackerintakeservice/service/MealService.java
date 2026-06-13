@@ -37,6 +37,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -60,16 +61,21 @@ public class MealService {
         return mealTemplateMapper.toDtoList(templates);
     }
 
-    @Transactional
     @CacheEvict(value = CacheConstants.MEAL_TEMPLATES, key = "#userId")
-    public Long createTemplate(MealTemplateRequestDto request, Long userId) {
+    public Long createTemplate(MealTemplateRequestDto request, Long userId, UUID requestId) {
         log.info("Creating meal template '{}' for userId={}", request.getName(), userId);
+        MealTemplate existing = mealTemplateRepository.findByUserIdAndRequestId(userId, requestId)
+                .orElse(null);
+        if (existing != null) {
+            return existing.getId();
+        }
         List<String> foodIds = request.getItems().stream()
                 .map(MealTemplateRequestDto.TemplateItemDto::getFoodId)
                 .toList();
         Map<String, FoodDto> foodMap = fetchAndValidateFoods(foodIds);
         MealTemplate template = MealTemplate.builder()
                 .userId(userId)
+                .requestId(requestId)
                 .name(request.getName())
                 .build();
         List<MealTemplateItem> items = request.getItems().stream()
@@ -77,7 +83,13 @@ public class MealService {
                         dto.getAmount(), dto.getUnitType()))
                 .collect(Collectors.toList());
         template.setItems(items);
-        return mealTemplateRepository.save(template).getId();
+        try {
+            return mealTemplateRepository.saveAndFlush(template).getId();
+        } catch (DataIntegrityViolationException exception) {
+            return mealTemplateRepository.findByUserIdAndRequestId(userId, requestId)
+                    .map(MealTemplate::getId)
+                    .orElseThrow(() -> exception);
+        }
     }
 
     @Transactional

@@ -22,10 +22,12 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.FoodClientService;
+import com.olehprukhnytskyi.util.CustomHeaders;
 import com.olehprukhnytskyi.util.UnitType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -92,6 +94,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         String responseJson = mockMvc.perform(
                         post("/api/meal-templates")
                                 .header("X-User-Id", 101L)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )
@@ -109,6 +112,76 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .filter(i -> i.getFoodId().equals(foodId1)).findFirst().get();
         assertThat(item1.getFoodName()).isEqualTo("Oats");
         assertThat(item1.getNutriments().getCaloriesPer100()).isEqualByComparingTo("350");
+    }
+
+    @Test
+    @DisplayName("When request id is repeated, should return previously created template")
+    void createTemplate_whenRequestIdRepeated_shouldBeIdempotent() throws Exception {
+        final UUID requestId = UUID.randomUUID();
+        MealTemplateRequestDto request = new MealTemplateRequestDto();
+        request.setName("Offline Breakfast");
+        request.setItems(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
+                .foodId("food-oats")
+                .unitType(UnitType.GRAMS)
+                .amount(50)
+                .build()));
+
+        given(foodClientService.getFoodsByIds(anyList()))
+                .willReturn(List.of(createMockFood("food-oats", "Oats", 350)));
+
+        String requestJson = objectMapper.writeValueAsString(request);
+        String firstResponse = mockMvc.perform(
+                        post("/api/meal-templates")
+                                .header(CustomHeaders.X_USER_ID, 101L)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestJson)
+                )
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        String repeatedResponse = mockMvc.perform(
+                        post("/api/meal-templates")
+                                .header(CustomHeaders.X_USER_ID, 101L)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestJson)
+                )
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(repeatedResponse).isEqualTo(firstResponse);
+        assertThat(mealTemplateRepository.findAllByUserId(101L)).hasSize(1);
+    }
+
+    @Test
+    @DisplayName("When different users reuse request id, should create both templates")
+    void createTemplate_whenDifferentUsersReuseRequestId_shouldCreateBoth() throws Exception {
+        UUID requestId = UUID.randomUUID();
+        MealTemplateRequestDto request = new MealTemplateRequestDto();
+        request.setName("Shared Request ID");
+        request.setItems(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
+                .foodId("food-oats")
+                .unitType(UnitType.GRAMS)
+                .amount(50)
+                .build()));
+        given(foodClientService.getFoodsByIds(anyList()))
+                .willReturn(List.of(createMockFood("food-oats", "Oats", 350)));
+        String requestJson = objectMapper.writeValueAsString(request);
+
+        for (long userId : List.of(201L, 202L)) {
+            mockMvc.perform(
+                            post("/api/meal-templates")
+                                    .header(CustomHeaders.X_USER_ID, userId)
+                                    .header(CustomHeaders.X_REQUEST_ID, requestId)
+                                    .contentType(MediaType.APPLICATION_JSON)
+                                    .content(requestJson)
+                    )
+                    .andExpect(status().isCreated());
+        }
+
+        assertThat(mealTemplateRepository.findAllByUserId(201L)).hasSize(1);
+        assertThat(mealTemplateRepository.findAllByUserId(202L)).hasSize(1);
     }
 
     @Test
@@ -131,6 +204,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(
                         post("/api/meal-templates")
                                 .header("X-User-Id", 1L)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )
@@ -157,6 +231,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(
                         post("/api/meal-templates")
                                 .header("X-User-Id", 1L)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )
@@ -175,6 +250,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(
                         post("/api/meal-templates")
                                 .header("X-User-Id", 1L)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(request))
                 )

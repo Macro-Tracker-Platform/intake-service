@@ -4,6 +4,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -18,6 +19,8 @@ public interface IntakeRepository extends JpaRepository<Intake, Long> {
     List<Intake> findByUserId(Long userId);
 
     Optional<Intake> findByIdAndUserId(Long id, Long userId);
+
+    Optional<Intake> findByUserIdAndRequestId(Long userId, UUID requestId);
 
     void deleteByIdAndUserId(Long id, Long userId);
 

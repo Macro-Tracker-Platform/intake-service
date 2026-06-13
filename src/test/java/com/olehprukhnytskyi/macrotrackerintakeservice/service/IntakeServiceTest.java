@@ -26,6 +26,8 @@ import com.olehprukhnytskyi.util.UnitType;
 import feign.FeignException;
 import feign.Request;
 import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -52,6 +54,25 @@ class IntakeServiceTest {
     private final Long userId = 456L;
 
     @Test
+    @DisplayName("When request id already exists, should return persisted intake")
+    void save_whenRequestIdExists_shouldReturnPersistedIntake() {
+        UUID requestId = UUID.randomUUID();
+        IntakeRequestDto requestDto = new IntakeRequestDto("food123");
+        Intake existing = Intake.builder().id(10L).userId(userId).requestId(requestId).build();
+        IntakeResponseDto responseDto = IntakeResponseDto.builder().id(10L).build();
+
+        when(intakeRepository.findByUserIdAndRequestId(userId, requestId))
+                .thenReturn(Optional.of(existing));
+        when(intakeMapper.toDto(existing)).thenReturn(responseDto);
+
+        IntakeResponseDto result = intakeService.save(requestDto, userId, requestId);
+
+        assertEquals(responseDto, result);
+        verify(foodClientService, never()).getFoodById(any());
+        verify(intakeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
     @DisplayName("When valid request with existing food, should save intake and return DTO")
     void save_whenFoodExists_shouldSaveAndReturnDto() {
         // Given
@@ -69,6 +90,7 @@ class IntakeServiceTest {
                 .id(1L)
                 .foodName("Apple")
                 .build();
+        UUID requestId = UUID.randomUUID();
 
         when(foodClientService.getFoodById("food123")).thenReturn(foodDto);
         when(intakeMapper.toModel(requestDto)).thenReturn(intake);
@@ -76,23 +98,24 @@ class IntakeServiceTest {
             inv.<Intake>getArgument(0).setFoodName((foodDto.getProductName()));
             return null;
         }).when(intakeMapper).updateIntakeFromFoodDto(intake, foodDto);
-        when(intakeRepository.save(intake)).thenReturn(savedIntake);
+        when(intakeRepository.saveAndFlush(intake)).thenReturn(savedIntake);
         when(intakeMapper.toDto(savedIntake)).thenReturn(responseDto);
         when(nutrientStrategyFactory.getStrategy(UnitType.GRAMS))
                 .thenReturn(new GramsCalculationStrategy());
         when(nutrimentsMapper.fromFoodNutriments(any())).thenReturn(new Nutriments());
 
         // When
-        final IntakeResponseDto result = intakeService.save(requestDto, userId);
+        final IntakeResponseDto result = intakeService.save(requestDto, userId, requestId);
 
         // Then
         verify(intakeMapper).updateIntakeFromFoodDto(intake, foodDto);
-        verify(intakeRepository).save(intake);
+        verify(intakeRepository).saveAndFlush(intake);
 
         assertEquals(responseDto, result);
         assertEquals(userId, intake.getUserId());
         assertEquals(requestDto.getFoodId(), intake.getFoodId());
         assertEquals("Apple", intake.getFoodName());
+        assertEquals(requestId, intake.getRequestId());
     }
 
     @Test
@@ -106,10 +129,10 @@ class IntakeServiceTest {
 
         // When & Then
         NotFoundException ex = assertThrows(NotFoundException.class,
-                () -> intakeService.save(requestDto, userId));
+                () -> intakeService.save(requestDto, userId, UUID.randomUUID()));
 
         assertEquals("Food not found", ex.getMessage());
-        verify(intakeRepository, never()).save(any());
+        verify(intakeRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -128,9 +151,9 @@ class IntakeServiceTest {
 
         // When & Then
         assertThrows(ExternalServiceException.class,
-                () -> intakeService.save(requestDto, userId));
+                () -> intakeService.save(requestDto, userId, UUID.randomUUID()));
 
-        verify(intakeRepository, never()).save(any());
+        verify(intakeRepository, never()).saveAndFlush(any());
     }
 
     @Test

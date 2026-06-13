@@ -1,0 +1,26 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1781222400000-2
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addColumn:
+            tableName: intake
+            columns:
+              - column:
+                  name: request_id
+                  type: UUID
+        - addUniqueConstraint:
+            tableName: intake
+            columnNames: user_id, request_id
+            constraintName: uk_intake_user_request_id
+        - addColumn:
+            tableName: meal_template
+            columns:
+              - column:
+                  name: request_id
+                  type: UUID
+        - addUniqueConstraint:
+            tableName: meal_template
+            columnNames: user_id, request_id
+            constraintName: uk_meal_template_user_request_id

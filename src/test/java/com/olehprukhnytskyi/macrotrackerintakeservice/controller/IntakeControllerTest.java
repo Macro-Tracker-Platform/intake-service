@@ -197,6 +197,8 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .unitType(UnitType.GRAMS)
                 .availableUnits(List.of(UnitType.GRAMS))
                 .intakePeriod(IntakePeriod.SNACK)
+                .mealGroupId("meal-group-1")
+                .mealTemplateName("Morning Porridge")
                 .build();
 
         FoodDto foodDto = FoodDto.builder()
@@ -217,6 +219,8 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .date(LocalDate.now())
                 .unitType(UnitType.GRAMS)
                 .intakePeriod(IntakePeriod.SNACK)
+                .mealGroupId("meal-group-1")
+                .mealTemplateName("Morning Porridge")
                 .build());
 
         when(redisTemplate.hasKey(anyString())).thenReturn(false);
@@ -226,7 +230,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         // When
         MvcResult mvcResult = mockMvc.perform(post("/api/intake")
                         .header(CustomHeaders.X_USER_ID, 1L)
-                        .header(CustomHeaders.X_REQUEST_ID, "req-123")
+                        .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
                 .andExpect(status().isCreated())
@@ -240,6 +244,11 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .ignoringFields("id")
                 .ignoringCollectionOrder()
                 .isEqualTo(responseDto);
+        assertThat(intakeResponseDto.getMealGroupId()).isEqualTo("meal-group-1");
+        assertThat(intakeResponseDto.getMealTemplateName()).isEqualTo("Morning Porridge");
+        Intake savedIntake = intakeRepository.findById(intakeResponseDto.getId()).orElseThrow();
+        assertThat(savedIntake.getMealGroupId()).isEqualTo("meal-group-1");
+        assertThat(savedIntake.getMealTemplateName()).isEqualTo("Morning Porridge");
         verify(foodClientService).getFoodById("food-1");
     }
 
@@ -261,20 +270,35 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .availableUnits(List.of(UnitType.GRAMS))
                 .build();
 
-        when(redisTemplate.hasKey(anyString())).thenReturn(true);
         when(foodClientService.getFoodById(anyString())).thenReturn(foodDto);
+        UUID requestId = UUID.randomUUID();
 
         // When
-        mockMvc.perform(
+        String firstResponse = mockMvc.perform(
                 post("/api/intake")
                         .header(CustomHeaders.X_USER_ID, 1L)
-                        .header(CustomHeaders.X_REQUEST_ID, "req-123")
+                        .header(CustomHeaders.X_REQUEST_ID, requestId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(requestJson)
                 )
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.foodName").value("Oatmeal"))
-                .andExpect(jsonPath("$.amount").value(200));
+                .andExpect(jsonPath("$.amount").value(200))
+                .andReturn().getResponse().getContentAsString();
+
+        String repeatedResponse = mockMvc.perform(
+                        post("/api/intake")
+                                .header(CustomHeaders.X_USER_ID, 1L)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(requestJson)
+                )
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(repeatedResponse).isEqualTo(firstResponse);
+        assertThat(intakeRepository.findByUserIdAndRequestId(1L, requestId)).isPresent();
+        verify(foodClientService).getFoodById("food-2");
     }
 
     @Test
@@ -308,7 +332,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(
                         post("/api/intake")
                                 .header(CustomHeaders.X_USER_ID, headerUserId)
-                                .header(CustomHeaders.X_REQUEST_ID, "req-integrity-check")
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(objectMapper.writeValueAsString(requestDto))
                 )
@@ -385,6 +409,16 @@ class IntakeControllerTest extends AbstractIntegrationTest {
 
         // Then
         assertThat(intakeRepository.findById(intakeId)).isEmpty();
+    }
+
+    @Test
+    @DisplayName("When intake is already deleted, repeated delete should succeed")
+    void deleteById_whenAlreadyDeleted_shouldReturnNoContent() throws Exception {
+        mockMvc.perform(
+                        delete("/api/intake/{id}", Long.MAX_VALUE)
+                                .header(CustomHeaders.X_USER_ID, 1L)
+                )
+                .andExpect(status().isNoContent());
     }
 
     @Test

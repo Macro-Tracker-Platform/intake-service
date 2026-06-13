@@ -1,6 +1,5 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.controller;
 
-import com.olehprukhnytskyi.annotation.Idempotent;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto;
@@ -12,6 +11,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -67,13 +67,13 @@ public class IntakeController {
             summary = "Add food intake",
             description = "Record food consumption with automatic nutrition calculation"
     )
-    @Idempotent
     @PostMapping
     public ResponseEntity<IntakeResponseDto> addIntake(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(CustomHeaders.X_REQUEST_ID) UUID requestId,
             @Valid @RequestBody IntakeRequestDto intakeRequest) {
         log.info("Creating new intake record for userId={}", userId);
-        IntakeResponseDto saved = intakeService.save(intakeRequest, userId);
+        IntakeResponseDto saved = intakeService.save(intakeRequest, userId, requestId);
         log.debug("Intake record created successfully for userId={} intakeId={}",
                 userId, saved.getId());
         return ResponseEntity.status(HttpStatus.CREATED)

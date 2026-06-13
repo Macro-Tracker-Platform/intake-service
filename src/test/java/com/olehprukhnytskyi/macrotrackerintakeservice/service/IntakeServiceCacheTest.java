@@ -29,6 +29,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -125,7 +126,7 @@ class IntakeServiceCacheTest extends AbstractIntegrationTest {
         when(intakeMapper.toModel(any())).thenReturn(intake);
 
         // When
-        intakeService.save(request, userId);
+        intakeService.save(request, userId, UUID.randomUUID());
 
         // Then
         Set<String> keysAfter = redisTemplate.keys(CacheConstants.USER_INTAKES + "*");

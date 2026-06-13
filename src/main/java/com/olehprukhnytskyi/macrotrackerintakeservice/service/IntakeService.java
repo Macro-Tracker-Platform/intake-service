@@ -26,6 +26,7 @@ import feign.FeignException;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -33,6 +34,7 @@ import org.springframework.cache.Cache;
 import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -50,18 +52,29 @@ public class IntakeService {
     private final UserEventProducer userEventProducer;
 
     @CacheEvict(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #intakeRequest.date")
-    @Transactional
-    public IntakeResponseDto save(IntakeRequestDto intakeRequest, Long userId) {
+    public IntakeResponseDto save(IntakeRequestDto intakeRequest, Long userId, UUID requestId) {
         log.info("Saving intake for userId={}", userId);
+        Intake existing = intakeRepository.findByUserIdAndRequestId(userId, requestId)
+                .orElse(null);
+        if (existing != null) {
+            return intakeMapper.toDto(existing);
+        }
         FoodDto food = fetchFoodSafe(intakeRequest.getFoodId(),
                 intakeRequest.getOriginalFoodId(), userId);
         UnitType unitType = resolveUnitType(intakeRequest.getUnitType());
         NutrientUtils.validateUnitSupported(food, unitType);
         Intake intake = createIntakeEntity(intakeRequest, userId, food, unitType);
+        intake.setRequestId(requestId);
         calculateAndSetNutriments(intake, food.getNutriments(), intakeRequest.getAmount());
-        Intake saved = intakeRepository.save(intake);
-        log.debug("Intake saved successfully userId={} intakeId={}", userId, saved.getId());
-        return intakeMapper.toDto(saved);
+        try {
+            Intake saved = intakeRepository.saveAndFlush(intake);
+            log.debug("Intake saved successfully userId={} intakeId={}", userId, saved.getId());
+            return intakeMapper.toDto(saved);
+        } catch (DataIntegrityViolationException exception) {
+            return intakeRepository.findByUserIdAndRequestId(userId, requestId)
+                    .map(intakeMapper::toDto)
+                    .orElseThrow(() -> exception);
+        }
     }
 
     @Cacheable(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #date")
