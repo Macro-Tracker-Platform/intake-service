@@ -21,3 +21,5 @@ databaseChangeLog:
       file: db/changelog/changes/09-add-meal-template-name-to-intake.yaml
   - include:
       file: db/changelog/changes/10-add-idempotency-request-id.yaml
+  - include:
+      file: db/changelog/changes/11-add-meal-template-application.yaml

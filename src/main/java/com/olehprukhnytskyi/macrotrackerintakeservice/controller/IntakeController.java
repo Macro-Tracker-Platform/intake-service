@@ -120,7 +120,7 @@ public class IntakeController {
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
             @Parameter(description = "UUID string identifying the batch of records",
                     required = true)
-            @PathVariable String mealGroupId) {
+            @PathVariable UUID mealGroupId) {
         log.info("Request to revert intake group {} for userId={}", mealGroupId, userId);
         intakeService.undoIntakeGroup(mealGroupId, userId);
         log.debug("Intake group {} reverted successfully", mealGroupId);

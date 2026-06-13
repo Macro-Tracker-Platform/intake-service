@@ -21,7 +21,9 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.NutrimentsDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateApplication;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
+import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.FoodClientService;
 import com.olehprukhnytskyi.util.CustomHeaders;
 import com.olehprukhnytskyi.util.IntakePeriod;
@@ -65,6 +67,8 @@ class IntakeControllerTest extends AbstractIntegrationTest {
 
     @Autowired
     private IntakeRepository intakeRepository;
+    @Autowired
+    private MealTemplateApplicationRepository applicationRepository;
 
     @BeforeAll
     static void beforeAll(
@@ -427,10 +431,18 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         // Given
         Long userId = 103L;
         String groupIdToDelete = UUID.randomUUID().toString();
-        String otherGroupId = UUID.randomUUID().toString();
+        final String otherGroupId = UUID.randomUUID().toString();
 
         saveIntakeWithGroup(userId, groupIdToDelete);
         saveIntakeWithGroup(userId, groupIdToDelete);
+        applicationRepository.save(MealTemplateApplication.builder()
+                .userId(userId)
+                .requestId(UUID.randomUUID())
+                .mealGroupId(UUID.fromString(groupIdToDelete))
+                .templateId(1L)
+                .date(LocalDate.now())
+                .intakePeriod(IntakePeriod.SNACK)
+                .build());
 
         saveIntakeWithGroup(userId, otherGroupId);
 
@@ -447,6 +459,8 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         List<Intake> remainingIntakes = intakeRepository.findByUserId(userId);
         assertThat(remainingIntakes).hasSize(1);
         assertThat(remainingIntakes.get(0).getMealGroupId()).isEqualTo(otherGroupId);
+        assertThat(applicationRepository.findByUserIdAndMealGroupId(
+                userId, UUID.fromString(groupIdToDelete))).isEmpty();
     }
 
     @Test

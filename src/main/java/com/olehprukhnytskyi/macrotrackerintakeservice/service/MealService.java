@@ -13,11 +13,11 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateMealTemplateDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.MealTemplateMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
-import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateItem;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
+import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientCalculationStrategy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientStrategyFactory;
@@ -26,7 +26,6 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.util.NutrientUtils;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import java.time.LocalDate;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -48,6 +47,8 @@ public class MealService {
     private final NutrientStrategyFactory strategyFactory;
     private final IntakeRepository intakeRepository;
     private final MealTemplateRepository mealTemplateRepository;
+    private final MealTemplateApplicationRepository applicationRepository;
+    private final MealTemplateApplicationService applicationService;
     private final IntakeMapper intakeMapper;
     private final MealTemplateMapper mealTemplateMapper;
     private final NutrimentsMapper nutrimentsMapper;
@@ -92,21 +93,26 @@ public class MealService {
         }
     }
 
-    @Transactional
     @CacheEvict(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #date")
     public List<IntakeResponseDto> applyTemplate(Long templateId, LocalDate date,
-                                                 IntakePeriod period, Long userId) {
+                                                 IntakePeriod period, UUID mealGroupId,
+                                                 Long userId, UUID requestId) {
         log.info("Applying template id={} for userId={} on date={}", templateId, userId, date);
-        MealTemplate template = mealTemplateRepository.findByIdAndUserId(templateId, userId)
-                .orElseThrow(() -> new NotFoundException(IntakeErrorCode.INTAKE_NOT_FOUND,
-                        "Template not found"));
-        String batchId = UUID.randomUUID().toString();
-        List<Intake> newIntakes = createIntakesFromTemplateItem(
-                template.getItems(), template.getName(), date, period, userId, batchId);
-        List<Intake> savedIntakes = intakeRepository.saveAll(newIntakes);
-        log.debug("Applied template '{}', created {} intake records",
-                template.getName(), savedIntakes.size());
-        return savedIntakes.stream().map(intakeMapper::toDto).toList();
+        List<IntakeResponseDto> existing = findAppliedIntakes(userId, requestId);
+        if (existing != null) {
+            return existing;
+        }
+        IntakePeriod resolvedPeriod = period != null ? period : IntakePeriod.SNACK;
+        try {
+            return applicationService.create(templateId, date, resolvedPeriod, mealGroupId,
+                    userId, requestId);
+        } catch (DataIntegrityViolationException exception) {
+            List<IntakeResponseDto> concurrentlyCreated = findAppliedIntakes(userId, requestId);
+            if (concurrentlyCreated != null) {
+                return concurrentlyCreated;
+            }
+            throw exception;
+        }
     }
 
     @Transactional
@@ -200,29 +206,15 @@ public class MealService {
         }
     }
 
-    private List<Intake> createIntakesFromTemplateItem(List<MealTemplateItem> items,
-                                                       String templateName, LocalDate date,
-                                                       IntakePeriod period, Long userId,
-                                                       String batchId) {
-        List<Intake> intakes = new ArrayList<>();
-        for (MealTemplateItem item : items) {
-            Intake intake = new Intake();
-            intake.setMealGroupId(batchId);
-            intake.setMealTemplateName(templateName);
-            intake.setUserId(userId);
-            intake.setFoodId(item.getFoodId());
-            intake.setFoodName(item.getFoodName());
-            intake.setDate(date);
-            intake.setUnitType(item.getUnitType());
-            intake.setIntakePeriod(period != null ? period : IntakePeriod.SNACK);
-            intake.setAmount(item.getAmount());
-            intake.setNutriments(nutrimentsMapper.clone(item.getNutriments()));
-            intake.setOriginalFoodId(item.getOriginalFoodId());
-            intake.setModerationStatus(item.getModerationStatus());
-            intake.setVerifiedByAdmin(item.isVerifiedByAdmin());
-            intakes.add(intake);
-        }
-        return intakes;
+    private List<IntakeResponseDto> findAppliedIntakes(Long userId, UUID requestId) {
+        return applicationRepository.findByUserIdAndRequestId(userId, requestId)
+                .map(application -> intakeRepository
+                        .findByMealGroupIdAndUserIdOrderByMealItemPositionAsc(
+                                application.getMealGroupId().toString(), userId)
+                        .stream()
+                        .map(intakeMapper::toDto)
+                        .toList())
+                .orElse(null);
     }
 
     private Map<String, FoodDto> fetchAndValidateFoods(List<String> foodIds) {

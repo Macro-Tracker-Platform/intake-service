@@ -1,0 +1,78 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1781222400000-3
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addColumn:
+            tableName: meal_template_item
+            columns:
+              - column:
+                  name: item_position
+                  type: INT
+        - sql:
+            dbms: postgresql
+            sql: >
+              WITH ordered AS (
+                SELECT id, ROW_NUMBER() OVER (PARTITION BY template_id ORDER BY id) - 1 AS position
+                FROM meal_template_item
+              )
+              UPDATE meal_template_item
+              SET item_position = ordered.position
+              FROM ordered
+              WHERE meal_template_item.id = ordered.id
+        - addColumn:
+            tableName: intake
+            columns:
+              - column:
+                  name: meal_item_position
+                  type: INT
+        - createTable:
+            tableName: meal_template_application
+            columns:
+              - column:
+                  name: id
+                  type: BIGINT
+                  autoIncrement: true
+                  constraints:
+                    nullable: false
+                    primaryKey: true
+                    primaryKeyName: pk_meal_template_application
+              - column:
+                  name: user_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: request_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: meal_group_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+              - column:
+                  name: template_id
+                  type: BIGINT
+                  constraints:
+                    nullable: false
+              - column:
+                  name: date
+                  type: DATE
+                  constraints:
+                    nullable: false
+              - column:
+                  name: intake_period
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+        - addUniqueConstraint:
+            tableName: meal_template_application
+            columnNames: user_id, request_id
+            constraintName: uk_meal_template_application_user_request
+        - addUniqueConstraint:
+            tableName: meal_template_application
+            columnNames: user_id, meal_group_id
+            constraintName: uk_meal_template_application_user_group

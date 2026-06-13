@@ -17,6 +17,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.producer.UserEventProducer;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
+import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientCalculationStrategy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientStrategyFactory;
 import com.olehprukhnytskyi.macrotrackerintakeservice.util.CacheConstants;
@@ -45,6 +46,7 @@ public class IntakeService {
     private static final int DELETE_BATCH_SIZE = 1000;
     private final NutrientStrategyFactory strategyFactory;
     private final IntakeRepository intakeRepository;
+    private final MealTemplateApplicationRepository applicationRepository;
     private final CacheManager cacheManager;
     private final IntakeMapper intakeMapper;
     private final NutrimentsMapper nutrimentsMapper;
@@ -133,11 +135,12 @@ public class IntakeService {
     }
 
     @Transactional
-    public void undoIntakeGroup(String mealGroupId, Long userId) {
+    public void undoIntakeGroup(UUID mealGroupId, Long userId) {
         log.info("Reverting intake group {} for user {}", mealGroupId, userId);
-        intakeRepository.findFirstByMealGroupIdAndUserId(mealGroupId, userId)
+        intakeRepository.findFirstByMealGroupIdAndUserId(mealGroupId.toString(), userId)
                 .ifPresent(intake -> manualEvictUserIntakes(userId, intake.getDate()));
-        intakeRepository.deleteByMealGroupIdAndUserId(mealGroupId, userId);
+        intakeRepository.deleteByMealGroupIdAndUserId(mealGroupId.toString(), userId);
+        applicationRepository.deleteByUserIdAndMealGroupId(userId, mealGroupId);
     }
 
     private void manualEvictUserIntakes(Long userId, LocalDate date) {

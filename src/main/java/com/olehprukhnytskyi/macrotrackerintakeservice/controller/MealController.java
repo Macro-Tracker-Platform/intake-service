@@ -83,15 +83,17 @@ public class MealController {
     @PostMapping("/{templateId}/apply")
     public ResponseEntity<List<IntakeResponseDto>> applyTemplate(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(CustomHeaders.X_REQUEST_ID) UUID requestId,
             @PathVariable Long templateId,
             @Parameter(description = "Date to apply the template to (yyyy-MM-dd)",
                     required = true)
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
             @Parameter(description = "Meal period (BREAKFAST, LUNCH, etc.)")
-            @RequestParam(required = false, defaultValue = "SNACK") IntakePeriod period) {
+            @RequestParam(required = false, defaultValue = "SNACK") IntakePeriod period,
+            @RequestParam UUID mealGroupId) {
         log.info("Applying template id={} for userId={} on date={}", templateId, userId, date);
         List<IntakeResponseDto> createdIntakes = mealService
-                .applyTemplate(templateId, date, period, userId);
+                .applyTemplate(templateId, date, period, mealGroupId, userId, requestId);
         log.debug("Template applied successfully, created {} records", createdIntakes.size());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdIntakes);
     }

@@ -20,6 +20,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
+import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.GramsCalculationStrategy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientStrategyFactory;
 import com.olehprukhnytskyi.util.UnitType;
@@ -41,6 +42,8 @@ class IntakeServiceTest {
     private FoodClientService foodClientService;
     @Mock
     private IntakeRepository intakeRepository;
+    @Mock
+    private MealTemplateApplicationRepository applicationRepository;
     @Mock
     private IntakeMapper intakeMapper;
     @Mock
@@ -160,13 +163,15 @@ class IntakeServiceTest {
     @DisplayName("Should undo intake group")
     void undoIntakeGroup_shouldDelete() {
         // Given
-        String groupId = "uuid-123";
+        UUID groupId = UUID.randomUUID();
         Long userId = 1L;
 
         // When
         intakeService.undoIntakeGroup(groupId, userId);
 
         // Then
-        verify(intakeRepository, times(1)).deleteByMealGroupIdAndUserId(groupId, userId);
+        verify(intakeRepository, times(1))
+                .deleteByMealGroupIdAndUserId(groupId.toString(), userId);
+        verify(applicationRepository).deleteByUserIdAndMealGroupId(userId, groupId);
     }
 }

@@ -10,6 +10,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.olehprukhnytskyi.exception.NotFoundException;
+import com.olehprukhnytskyi.exception.error.IntakeErrorCode;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.FoodDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateRequestDto;
@@ -17,17 +18,15 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.NutrimentsDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.MealTemplateMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
-import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
-import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateItem;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
+import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.GramsCalculationStrategy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.strategy.NutrientStrategyFactory;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
@@ -46,6 +45,10 @@ class MealServiceTest {
     private IntakeRepository intakeRepository;
     @Mock
     private MealTemplateRepository mealTemplateRepository;
+    @Mock
+    private MealTemplateApplicationRepository applicationRepository;
+    @Mock
+    private MealTemplateApplicationService applicationService;
     @Mock
     private IntakeMapper intakeMapper;
     @Mock
@@ -165,62 +168,38 @@ class MealServiceTest {
         // Given
         Long userId = 1L;
         Long templateId = 100L;
-
-        Nutriments baseNutriments = new Nutriments();
-        baseNutriments.setCaloriesPer100(BigDecimal.valueOf(200));
-        baseNutriments.setCalories(BigDecimal.valueOf(100));
-
-        MealTemplateItem item = MealTemplateItem.builder()
-                .foodId("f1")
-                .foodName("Rice")
-                .amount(50)
-                .nutriments(baseNutriments)
-                .build();
-
-        MealTemplate template = MealTemplate.builder()
-                .id(templateId)
-                .userId(userId)
-                .name("Lunch Box")
-                .items(List.of(item))
-                .build();
-
-        when(mealTemplateRepository.findByIdAndUserId(templateId, userId))
-                .thenReturn(Optional.of(template));
-        when(intakeRepository.saveAll(anyList())).thenAnswer(inv -> inv.getArgument(0));
-        when(intakeMapper.toDto(any(Intake.class))).thenReturn(new IntakeResponseDto());
-        when(nutrimentsMapper.clone(any(Nutriments.class)))
-                .thenAnswer(invocation -> invocation.<Nutriments>getArgument(0));
+        LocalDate date = LocalDate.now();
+        UUID requestId = UUID.randomUUID();
+        UUID mealGroupId = UUID.randomUUID();
+        List<IntakeResponseDto> expected = List.of(new IntakeResponseDto());
+        when(applicationService.create(templateId, date, IntakePeriod.LUNCH,
+                mealGroupId, userId, requestId)).thenReturn(expected);
 
         // When
-        mealService.applyTemplate(templateId, LocalDate.now(), IntakePeriod.LUNCH, userId);
+        List<IntakeResponseDto> result = mealService.applyTemplate(
+                templateId, date, IntakePeriod.LUNCH, mealGroupId, userId, requestId);
 
         // Then
-        ArgumentCaptor<List<Intake>> intakeCaptor = ArgumentCaptor.forClass(List.class);
-        verify(intakeRepository).saveAll(intakeCaptor.capture());
-
-        List<Intake> savedIntakes = intakeCaptor.getValue();
-        assertThat(savedIntakes).hasSize(1);
-
-        Intake savedIntake = savedIntakes.getFirst();
-        assertThat(savedIntake.getMealGroupId()).isNotNull();
-        assertThat(savedIntake.getMealTemplateName()).isEqualTo("Lunch Box");
-        assertThat(savedIntake.getAmount()).isEqualTo(50);
-        assertThat(savedIntake.getFoodName()).isEqualTo("Rice");
-        assertThat(savedIntake.getNutriments().getCalories())
-                .isEqualByComparingTo(BigDecimal.valueOf(100));
+        assertThat(result).isEqualTo(expected);
+        verify(applicationService).create(templateId, date, IntakePeriod.LUNCH,
+                mealGroupId, userId, requestId);
     }
 
     @Test
     @DisplayName("When template not found, should throw NotFoundException")
     void applyTemplate_whenTemplateNotFound_shouldThrowException() {
         // Given
-        when(mealTemplateRepository.findByIdAndUserId(any(), any()))
-                .thenReturn(Optional.empty());
+        UUID requestId = UUID.randomUUID();
+        UUID mealGroupId = UUID.randomUUID();
+        LocalDate date = LocalDate.now();
+        when(applicationService.create(1L, date, IntakePeriod.SNACK,
+                mealGroupId, 1L, requestId))
+                .thenThrow(new NotFoundException(IntakeErrorCode.INTAKE_NOT_FOUND,
+                        "Template not found"));
 
         // When & Then
         assertThrows(NotFoundException.class, () ->
-                mealService.applyTemplate(1L, LocalDate.now(), IntakePeriod.SNACK, 1L));
-
-        verify(intakeRepository, never()).saveAll(any());
+                mealService.applyTemplate(1L, date, IntakePeriod.SNACK,
+                        mealGroupId, 1L, requestId));
     }
 }

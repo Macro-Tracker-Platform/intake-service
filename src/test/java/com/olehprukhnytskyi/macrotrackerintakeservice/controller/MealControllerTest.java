@@ -20,6 +20,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateItem;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
+import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.FoodClientService;
 import com.olehprukhnytskyi.util.CustomHeaders;
@@ -49,6 +50,8 @@ class MealControllerTest extends AbstractIntegrationTest {
     private IntakeRepository intakeRepository;
     @Autowired
     private MealTemplateRepository mealTemplateRepository;
+    @Autowired
+    private MealTemplateApplicationRepository applicationRepository;
 
     @MockitoBean
     private FoodClientService foodClientService;
@@ -265,12 +268,16 @@ class MealControllerTest extends AbstractIntegrationTest {
         Long attackerId = 666L;
 
         MealTemplate template = createAndSaveTemplateInDb(ownerId, "Private Diet");
+        UUID requestId = UUID.randomUUID();
+        UUID mealGroupId = UUID.randomUUID();
 
         // When
         mockMvc.perform(
                         post("/api/meal-templates/{templateId}/apply", template.getId())
                                 .header("X-User-Id", attackerId)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
                                 .param("date", LocalDate.now().toString())
+                                .param("mealGroupId", mealGroupId.toString())
                 )
                 .andExpect(status().isNotFound());
 
@@ -284,28 +291,49 @@ class MealControllerTest extends AbstractIntegrationTest {
         // Given
         Long userId = 102L;
         LocalDate date = LocalDate.now();
+        UUID requestId = UUID.randomUUID();
+        UUID mealGroupId = UUID.randomUUID();
 
         MealTemplate template = createAndSaveTemplateInDb(userId, "Lunch Box");
         Long templateId = template.getId();
 
         // When
-        mockMvc.perform(
+        String firstResponse = mockMvc.perform(
                         post("/api/meal-templates/{templateId}/apply", templateId)
                                 .header("X-User-Id", userId)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
                                 .param("date", date.toString())
                                 .param("period", "LUNCH")
+                                .param("mealGroupId", mealGroupId.toString())
                 )
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$").isArray())
                 .andExpect(jsonPath("$.length()").value(2))
-                .andExpect(jsonPath("$[0].mealGroupId").exists())
+                .andExpect(jsonPath("$[0].mealGroupId").value(mealGroupId.toString()))
                 .andExpect(jsonPath("$[0].mealTemplateName").value("Lunch Box"))
-                .andExpect(jsonPath("$[0].date").value(date.toString()));
+                .andExpect(jsonPath("$[0].date").value(date.toString()))
+                .andExpect(jsonPath("$[0].foodId").value("f1"))
+                .andExpect(jsonPath("$[1].foodId").value("f2"))
+                .andReturn().getResponse().getContentAsString();
+
+        String repeatedResponse = mockMvc.perform(
+                        post("/api/meal-templates/{templateId}/apply", templateId)
+                                .header("X-User-Id", userId)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
+                                .param("date", date.toString())
+                                .param("period", "LUNCH")
+                                .param("mealGroupId", UUID.randomUUID().toString())
+                )
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(repeatedResponse).isEqualTo(firstResponse);
+        assertThat(applicationRepository.findByUserIdAndRequestId(userId, requestId)).isPresent();
 
         // Then
         List<Intake> intakes = intakeRepository.findByUserIdAndDate(userId, date);
         assertThat(intakes).hasSize(2);
-        assertThat(intakes.get(0).getMealGroupId()).isNotNull();
+        assertThat(intakes.get(0).getMealGroupId()).isEqualTo(mealGroupId.toString());
         assertThat(intakes.get(0).getMealGroupId()).isEqualTo(intakes.get(1).getMealGroupId());
         assertThat(intakes)
                 .extracting(Intake::getMealTemplateName)
@@ -333,7 +361,9 @@ class MealControllerTest extends AbstractIntegrationTest {
         mockMvc.perform(
                         post("/api/meal-templates/{templateId}/apply", wrongId)
                                 .header("X-User-Id", userId)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
                                 .param("date", LocalDate.now().toString())
+                                .param("mealGroupId", UUID.randomUUID().toString())
                 )
                 .andExpect(status().isNotFound());
     }

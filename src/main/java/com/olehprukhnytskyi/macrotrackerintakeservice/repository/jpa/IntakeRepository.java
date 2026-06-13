@@ -22,6 +22,9 @@ public interface IntakeRepository extends JpaRepository<Intake, Long> {
 
     Optional<Intake> findByUserIdAndRequestId(Long userId, UUID requestId);
 
+    List<Intake> findByMealGroupIdAndUserIdOrderByMealItemPositionAsc(
+            String mealGroupId, Long userId);
+
     void deleteByIdAndUserId(Long id, Long userId);
 
     @Transactional

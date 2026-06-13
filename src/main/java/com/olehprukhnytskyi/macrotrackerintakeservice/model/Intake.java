@@ -35,6 +35,8 @@ public class Intake {
 
     private String mealTemplateName;
 
+    private Integer mealItemPosition;
+
     @Column(nullable = false)
     private Long userId;
 
