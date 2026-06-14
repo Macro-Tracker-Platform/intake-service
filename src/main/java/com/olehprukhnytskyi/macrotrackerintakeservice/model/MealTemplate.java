@@ -1,8 +1,11 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.model;
 
+import com.olehprukhnytskyi.util.UnitType;
 import jakarta.persistence.CascadeType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -34,6 +37,15 @@ public class MealTemplate {
 
     @Column(nullable = false)
     private String name;
+
+    @Builder.Default
+    @Column(name = "is_recipe", nullable = false)
+    private boolean recipe = false;
+
+    private Integer totalYieldAmount;
+
+    @Enumerated(EnumType.STRING)
+    private UnitType yieldUnitType;
 
     @OneToMany(mappedBy = "template", cascade = CascadeType.ALL, orphanRemoval = true)
     @OrderColumn(name = "item_position")

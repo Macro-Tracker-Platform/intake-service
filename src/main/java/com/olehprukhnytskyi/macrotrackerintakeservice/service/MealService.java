@@ -70,6 +70,8 @@ public class MealService {
         if (existing != null) {
             return existing.getId();
         }
+        RecipeYield recipeYield = resolveRecipeYield(request.isRecipe(),
+                request.getTotalYieldAmount(), request.getYieldUnitType());
         List<String> foodIds = request.getItems().stream()
                 .map(MealTemplateRequestDto.TemplateItemDto::getFoodId)
                 .toList();
@@ -78,6 +80,9 @@ public class MealService {
                 .userId(userId)
                 .requestId(requestId)
                 .name(request.getName())
+                .recipe(request.isRecipe())
+                .totalYieldAmount(recipeYield.amount())
+                .yieldUnitType(recipeYield.unitType())
                 .build();
         List<MealTemplateItem> items = request.getItems().stream()
                 .map(dto -> buildItem(template, foodMap.get(dto.getFoodId()),
@@ -115,6 +120,30 @@ public class MealService {
         }
     }
 
+    @CacheEvict(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #date")
+    public IntakeResponseDto applyRecipe(Long templateId, Integer consumedAmount,
+                                         UnitType unitType,
+                                         LocalDate date, IntakePeriod period,
+                                         Long userId, UUID requestId) {
+        log.info("Applying recipe template id={} for userId={} on date={}",
+                templateId, userId, date);
+        List<IntakeResponseDto> existing = findAppliedIntakes(userId, requestId);
+        if (existing != null && !existing.isEmpty()) {
+            return existing.getFirst();
+        }
+        IntakePeriod resolvedPeriod = period != null ? period : IntakePeriod.SNACK;
+        try {
+            return applicationService.createRecipe(templateId, consumedAmount, unitType,
+                    date, resolvedPeriod, userId, requestId);
+        } catch (DataIntegrityViolationException exception) {
+            List<IntakeResponseDto> concurrentlyCreated = findAppliedIntakes(userId, requestId);
+            if (concurrentlyCreated != null && !concurrentlyCreated.isEmpty()) {
+                return concurrentlyCreated.getFirst();
+            }
+            throw exception;
+        }
+    }
+
     @Transactional
     @CacheEvict(value = CacheConstants.MEAL_TEMPLATES, key = "#userId")
     public void deleteTemplate(Long templateId, Long userId) {
@@ -135,10 +164,41 @@ public class MealService {
         if (request.getName() != null) {
             template.setName(request.getName());
         }
-        Map<String, FoodDto> newFoodsMap = resolveNewFoods(request.getItems(), template);
-        syncTemplateItems(template, request.getItems(), newFoodsMap);
+        if (request.getRecipe() != null) {
+            template.setRecipe(request.getRecipe());
+        }
+        if (request.getTotalYieldAmount() != null) {
+            template.setTotalYieldAmount(request.getTotalYieldAmount());
+        }
+        if (request.getYieldUnitType() != null) {
+            template.setYieldUnitType(request.getYieldUnitType());
+        }
+        RecipeYield recipeYield = resolveRecipeYield(template.isRecipe(),
+                template.getTotalYieldAmount(), template.getYieldUnitType());
+        template.setTotalYieldAmount(recipeYield.amount());
+        template.setYieldUnitType(recipeYield.unitType());
+        if (request.getItems() != null) {
+            Map<String, FoodDto> newFoodsMap = resolveNewFoods(request.getItems(), template);
+            syncTemplateItems(template, request.getItems(), newFoodsMap);
+        }
         mealTemplateRepository.save(template);
         log.debug("Meal template updated successfully id={} userId={}", templateId, userId);
+    }
+
+    private RecipeYield resolveRecipeYield(boolean recipe, Integer totalYieldAmount,
+                                           UnitType yieldUnitType) {
+        if (!recipe) {
+            return new RecipeYield(null, null);
+        }
+        if (totalYieldAmount == null || totalYieldAmount < 1) {
+            throw new BadRequestException(CommonErrorCode.VALIDATION_ERROR,
+                    "totalYieldAmount is required for recipe templates");
+        }
+        if (yieldUnitType == null) {
+            throw new BadRequestException(CommonErrorCode.VALIDATION_ERROR,
+                    "yieldUnitType is required for recipe templates");
+        }
+        return new RecipeYield(totalYieldAmount, yieldUnitType);
     }
 
     private Map<String, FoodDto> resolveNewFoods(
@@ -254,5 +314,8 @@ public class MealService {
                 .moderationStatus(food.getModerationStatus())
                 .verifiedByAdmin(food.isVerifiedByAdmin())
                 .build();
+    }
+
+    private record RecipeYield(Integer amount, UnitType unitType) {
     }
 }

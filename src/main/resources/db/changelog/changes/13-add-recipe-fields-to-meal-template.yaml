@@ -1,0 +1,21 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1781568000000-1
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addColumn:
+            tableName: meal_template
+            columns:
+              - column:
+                  name: is_recipe
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  name: total_yield_amount
+                  type: INT
+              - column:
+                  name: yield_unit_type
+                  type: VARCHAR(255)

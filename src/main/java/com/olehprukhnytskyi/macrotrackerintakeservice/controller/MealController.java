@@ -3,6 +3,7 @@ package com.olehprukhnytskyi.macrotrackerintakeservice.controller;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateResponseDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.dto.RecipeIntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateMealTemplateDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.MealService;
 import com.olehprukhnytskyi.util.CustomHeaders;
@@ -96,6 +97,31 @@ public class MealController {
                 .applyTemplate(templateId, date, period, mealGroupId, userId, requestId);
         log.debug("Template applied successfully, created {} records", createdIntakes.size());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdIntakes);
+    }
+
+    @Operation(
+            summary = "Apply recipe template",
+            description = """
+            Apply a recipe template to a specific date.
+            Creates one intake record for the consumed cooked portion with nutrient snapshot.
+            """)
+    @PostMapping("/{templateId}/apply-recipe")
+    public ResponseEntity<IntakeResponseDto> applyRecipe(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(CustomHeaders.X_REQUEST_ID) UUID requestId,
+            @PathVariable Long templateId,
+            @Parameter(description = "Date to apply the recipe to (yyyy-MM-dd)",
+                    required = true)
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @Parameter(description = "Meal period (BREAKFAST, LUNCH, etc.)")
+            @RequestParam(required = false, defaultValue = "SNACK") IntakePeriod period,
+            @Valid @RequestBody RecipeIntakeRequestDto request) {
+        log.info("Applying recipe id={} for userId={} on date={}", templateId, userId, date);
+        IntakeResponseDto createdIntake = mealService.applyRecipe(templateId,
+                request.getConsumedAmount(), request.getUnitType(), date, period, userId,
+                requestId);
+        log.debug("Recipe applied successfully, created intake id={}", createdIntake.getId());
+        return ResponseEntity.status(HttpStatus.CREATED).body(createdIntake);
     }
 
     @Operation(

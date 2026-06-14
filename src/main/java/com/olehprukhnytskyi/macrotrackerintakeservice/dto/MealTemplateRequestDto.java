@@ -1,5 +1,6 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.olehprukhnytskyi.util.UnitType;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -24,6 +25,18 @@ public class MealTemplateRequestDto {
     @Schema(description = "Name of the meal template", example = "Morning Porridge")
     private String name;
 
+    @Builder.Default
+    @JsonProperty("isRecipe")
+    @Schema(description = "Whether this template should be logged as a cooked recipe")
+    private boolean recipe = false;
+
+    @Min(1)
+    @Schema(description = "Total cooked recipe yield amount", example = "12")
+    private Integer totalYieldAmount;
+
+    @Schema(description = "Unit used to measure the cooked recipe yield", example = "PIECES")
+    private UnitType yieldUnitType;
+
     @Valid
     @NotEmpty
     @Size(min = 1, message = "Template must contain at least 1 item")
@@ -42,7 +55,7 @@ public class MealTemplateRequestDto {
 
         @NotNull
         @Min(1)
-        @Schema(description = "Standard amount in grams for this template", example = "100")
+        @Schema(description = "Standard item amount for this template", example = "100")
         private Integer amount;
 
         @NotNull

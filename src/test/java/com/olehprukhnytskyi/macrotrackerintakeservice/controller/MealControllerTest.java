@@ -109,12 +109,71 @@ class MealControllerTest extends AbstractIntegrationTest {
         assertThat(mealTemplateRepository.findById(templateId)).isPresent();
 
         MealTemplate savedTemplate = mealTemplateRepository.findById(templateId).get();
+        assertThat(savedTemplate.isRecipe()).isFalse();
+        assertThat(savedTemplate.getTotalYieldAmount()).isNull();
+        assertThat(savedTemplate.getYieldUnitType()).isNull();
         assertThat(savedTemplate.getItems()).hasSize(2);
 
         MealTemplateItem item1 = savedTemplate.getItems().stream()
                 .filter(i -> i.getFoodId().equals(foodId1)).findFirst().get();
         assertThat(item1.getFoodName()).isEqualTo("Oats");
         assertThat(item1.getNutriments().getCaloriesPer100()).isEqualByComparingTo("350");
+    }
+
+    @Test
+    @DisplayName("When recipe request is valid, should create recipe template")
+    void createTemplate_whenRecipeRequest_shouldSaveRecipeFields() throws Exception {
+        MealTemplateRequestDto request = new MealTemplateRequestDto();
+        request.setName("Cheese Pie");
+        request.setRecipe(true);
+        request.setTotalYieldAmount(12);
+        request.setYieldUnitType(UnitType.PIECES);
+        request.setItems(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
+                .foodId("food-cheese")
+                .unitType(UnitType.GRAMS)
+                .amount(1000)
+                .build()));
+
+        given(foodClientService.getFoodsByIds(anyList()))
+                .willReturn(List.of(createMockFood("food-cheese", "Cheese", 250)));
+
+        String responseJson = mockMvc.perform(
+                        post("/api/meal-templates")
+                                .header(CustomHeaders.X_USER_ID, 101L)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        MealTemplate savedTemplate = mealTemplateRepository.findById(Long.parseLong(responseJson))
+                .get();
+        assertThat(savedTemplate.isRecipe()).isTrue();
+        assertThat(savedTemplate.getTotalYieldAmount()).isEqualTo(12);
+        assertThat(savedTemplate.getYieldUnitType()).isEqualTo(UnitType.PIECES);
+    }
+
+    @Test
+    @DisplayName("When recipe has no yield, should return 400")
+    void createTemplate_whenRecipeWithoutYield_shouldReturn400() throws Exception {
+        MealTemplateRequestDto request = new MealTemplateRequestDto();
+        request.setName("Broken Recipe");
+        request.setRecipe(true);
+        request.setItems(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
+                .foodId("food-cheese")
+                .unitType(UnitType.GRAMS)
+                .amount(1000)
+                .build()));
+
+        mockMvc.perform(
+                        post("/api/meal-templates")
+                                .header(CustomHeaders.X_USER_ID, 101L)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isBadRequest());
     }
 
     @Test
@@ -355,6 +414,118 @@ class MealControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("When valid recipe id, should create one intake with proportional nutriments")
+    void applyRecipe_whenValidId_shouldCreateOneSnapshotIntake() throws Exception {
+        Long userId = 103L;
+        LocalDate date = LocalDate.now();
+        UUID requestId = UUID.randomUUID();
+        MealTemplate template = createAndSaveRecipeTemplateInDb(userId, "Cheese Pie");
+
+        String firstResponse = mockMvc.perform(
+                        post("/api/meal-templates/{templateId}/apply-recipe", template.getId())
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
+                                .param("date", date.toString())
+                                .param("period", "LUNCH")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"consumedAmount\":200,\"unitType\":\"GRAMS\"}")
+                )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.foodId").value("RECIPE_" + template.getId()))
+                .andExpect(jsonPath("$.foodName").value("Cheese Pie"))
+                .andExpect(jsonPath("$.amount").value(200))
+                .andExpect(jsonPath("$.unitType").value("GRAMS"))
+                .andExpect(jsonPath("$.intakePeriod").value("LUNCH"))
+                .andExpect(jsonPath("$.nutriments.calories").value(250.0))
+                .andExpect(jsonPath("$.nutriments.protein").value(20.0))
+                .andExpect(jsonPath("$.nutriments.fat").value(10.0))
+                .andExpect(jsonPath("$.nutriments.carbohydrates").value(30.0))
+                .andReturn().getResponse().getContentAsString();
+
+        String repeatedResponse = mockMvc.perform(
+                        post("/api/meal-templates/{templateId}/apply-recipe", template.getId())
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .header(CustomHeaders.X_REQUEST_ID, requestId)
+                                .param("date", date.toString())
+                                .param("period", "DINNER")
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"consumedAmount\":300,\"unitType\":\"GRAMS\"}")
+                )
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(repeatedResponse).isEqualTo(firstResponse);
+        List<Intake> intakes = intakeRepository.findByUserIdAndDate(userId, date);
+        assertThat(intakes).hasSize(1);
+        Intake intake = intakes.get(0);
+        assertThat(intake.getFoodId()).isEqualTo("RECIPE_" + template.getId());
+        assertThat(intake.getNutriments().getCalories()).isEqualByComparingTo("250.00");
+        assertThat(intake.getNutriments().getCaloriesPer100()).isEqualByComparingTo("125.00");
+        assertThat(applicationRepository.findByUserIdAndRequestId(userId, requestId)).isPresent();
+    }
+
+    @Test
+    @DisplayName("When recipe yield is pieces, should create proportional pieces intake")
+    void applyRecipe_whenYieldIsPieces_shouldCreatePiecesIntake() throws Exception {
+        Long userId = 105L;
+        LocalDate date = LocalDate.now();
+        MealTemplate template = createAndSaveRecipeTemplateInDb(
+                userId, "Cheese Buns", 12, UnitType.PIECES);
+
+        mockMvc.perform(
+                        post("/api/meal-templates/{templateId}/apply-recipe", template.getId())
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                                .param("date", date.toString())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"consumedAmount\":2,\"unitType\":\"PIECES\"}")
+                )
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.amount").value(2))
+                .andExpect(jsonPath("$.unitType").value("PIECES"))
+                .andExpect(jsonPath("$.nutriments.calories").value(166.67))
+                .andExpect(jsonPath("$.nutriments.caloriesPerPiece").value(83.33));
+
+        Intake intake = intakeRepository.findByUserIdAndDate(userId, date).get(0);
+        assertThat(intake.getNutriments().getCaloriesPer100()).isNull();
+        assertThat(intake.getNutriments().getCaloriesPerPiece()).isEqualByComparingTo("83.33");
+    }
+
+    @Test
+    @DisplayName("When consumed unit differs from recipe yield unit, should return 400")
+    void applyRecipe_whenUnitDoesNotMatchYield_shouldReturn400() throws Exception {
+        Long userId = 106L;
+        MealTemplate template = createAndSaveRecipeTemplateInDb(
+                userId, "Cheese Buns", 12, UnitType.PIECES);
+
+        mockMvc.perform(
+                        post("/api/meal-templates/{templateId}/apply-recipe", template.getId())
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                                .param("date", LocalDate.now().toString())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content("{\"consumedAmount\":200,\"unitType\":\"GRAMS\"}")
+                )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("When recipe is applied through regular endpoint, should return 400")
+    void applyTemplate_whenTemplateIsRecipe_shouldReturn400() throws Exception {
+        Long userId = 104L;
+        MealTemplate template = createAndSaveRecipeTemplateInDb(userId, "Cheese Pie");
+
+        mockMvc.perform(
+                        post("/api/meal-templates/{templateId}/apply", template.getId())
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                                .param("date", LocalDate.now().toString())
+                                .param("mealGroupId", UUID.randomUUID().toString())
+                )
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("When applying non-existent template, should return 404")
     void applyTemplate_whenTemplateNotFound_shouldReturn404() throws Exception {
         // Given
@@ -419,6 +590,51 @@ class MealControllerTest extends AbstractIntegrationTest {
                         BigDecimal.valueOf(200), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.ZERO,
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO))
+                .build();
+
+        template.setItems(List.of(item1, item2));
+        return mealTemplateRepository.save(template);
+    }
+
+    private MealTemplate createAndSaveRecipeTemplateInDb(Long userId, String name) {
+        return createAndSaveRecipeTemplateInDb(userId, name, 800, UnitType.GRAMS);
+    }
+
+    private MealTemplate createAndSaveRecipeTemplateInDb(Long userId, String name,
+                                                         Integer totalYieldAmount,
+                                                         UnitType yieldUnitType) {
+        MealTemplate template = MealTemplate.builder()
+                .userId(userId)
+                .name(name)
+                .recipe(true)
+                .totalYieldAmount(totalYieldAmount)
+                .yieldUnitType(yieldUnitType)
+                .build();
+
+        MealTemplateItem item1 = MealTemplateItem.builder()
+                .template(template)
+                .foodId("f1")
+                .foodName("Food 1")
+                .amount(500)
+                .nutriments(Nutriments.builder()
+                        .calories(BigDecimal.valueOf(600))
+                        .protein(BigDecimal.valueOf(50))
+                        .fat(BigDecimal.valueOf(25))
+                        .carbohydrates(BigDecimal.valueOf(80))
+                        .build())
+                .build();
+
+        MealTemplateItem item2 = MealTemplateItem.builder()
+                .template(template)
+                .foodId("f2")
+                .foodName("Food 2")
+                .amount(500)
+                .nutriments(Nutriments.builder()
+                        .calories(BigDecimal.valueOf(400))
+                        .protein(BigDecimal.valueOf(30))
+                        .fat(BigDecimal.valueOf(15))
+                        .carbohydrates(BigDecimal.valueOf(40))
+                        .build())
                 .build();
 
         template.setItems(List.of(item1, item2));

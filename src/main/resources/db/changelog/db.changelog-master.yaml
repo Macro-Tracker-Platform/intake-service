@@ -25,3 +25,5 @@ databaseChangeLog:
       file: db/changelog/changes/11-add-meal-template-application.yaml
   - include:
       file: db/changelog/changes/12-add-brand.yaml
+  - include:
+      file: db/changelog/changes/13-add-recipe-fields-to-meal-template.yaml
