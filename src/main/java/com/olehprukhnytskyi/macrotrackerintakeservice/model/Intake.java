@@ -49,6 +49,8 @@ public class Intake {
 
     private String foodName;
 
+    private String brand;
+
     @Column(nullable = false)
     private LocalDate date;
 

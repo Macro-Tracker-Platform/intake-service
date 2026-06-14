@@ -246,6 +246,7 @@ public class MealService {
                 .template(template)
                 .foodId(food.getId())
                 .foodName(food.getProductName())
+                .brand(food.getBrands())
                 .amount(amount)
                 .unitType(unitType)
                 .nutriments(calculated)

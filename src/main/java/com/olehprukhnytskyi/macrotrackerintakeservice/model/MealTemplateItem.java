@@ -41,6 +41,8 @@ public class MealTemplateItem {
     @Column(nullable = false)
     private String foodName;
 
+    private String brand;
+
     @Embedded
     private Nutriments nutriments;
 

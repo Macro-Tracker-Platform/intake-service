@@ -1,0 +1,18 @@
+databaseChangeLog:
+  - changeSet:
+      id: 1781395200000-1
+      author: oleh.prukhnytskyi
+      objectQuotingStrategy: QUOTE_ONLY_RESERVED_WORDS
+      changes:
+        - addColumn:
+            columns:
+              - column:
+                  name: brand
+                  type: VARCHAR(255)
+            tableName: intake
+        - addColumn:
+            columns:
+              - column:
+                  name: brand
+                  type: VARCHAR(255)
+            tableName: meal_template_item

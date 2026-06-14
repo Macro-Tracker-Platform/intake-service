@@ -99,6 +99,7 @@ class MealServiceTest {
         FoodDto foodDto = FoodDto.builder()
                 .id(foodId)
                 .productName("Oats")
+                .brands("Oat Company")
                 .nutriments(new NutrimentsDto())
                 .availableUnits(List.of(UnitType.GRAMS))
                 .build();
@@ -128,6 +129,7 @@ class MealServiceTest {
         assertThat(captured.getRequestId()).isEqualTo(requestId);
         assertThat(captured.getItems()).hasSize(1);
         assertThat(captured.getItems().get(0).getFoodName()).isEqualTo("Oats");
+        assertThat(captured.getItems().get(0).getBrand()).isEqualTo("Oat Company");
         assertThat(captured.getItems().get(0).getAmount()).isEqualTo(100);
     }
 

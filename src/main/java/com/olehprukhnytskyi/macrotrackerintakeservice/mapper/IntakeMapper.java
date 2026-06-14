@@ -24,6 +24,7 @@ public interface IntakeMapper {
 
     @Mappings({
             @Mapping(target = "foodName", source = "productName"),
+            @Mapping(target = "brand", source = "brands"),
             @Mapping(target = "id", ignore = true),
             @Mapping(target = "userId", ignore = true),
             @Mapping(target = "nutriments", ignore = true)

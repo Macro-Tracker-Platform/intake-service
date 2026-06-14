@@ -313,6 +313,7 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$[0].mealTemplateName").value("Lunch Box"))
                 .andExpect(jsonPath("$[0].date").value(date.toString()))
                 .andExpect(jsonPath("$[0].foodId").value("f1"))
+                .andExpect(jsonPath("$[0].brand").value("Brand 1"))
                 .andExpect(jsonPath("$[1].foodId").value("f2"))
                 .andReturn().getResponse().getContentAsString();
 
@@ -338,6 +339,9 @@ class MealControllerTest extends AbstractIntegrationTest {
         assertThat(intakes)
                 .extracting(Intake::getMealTemplateName)
                 .containsOnly("Lunch Box");
+        assertThat(intakes)
+                .extracting(Intake::getBrand)
+                .containsExactlyInAnyOrder("Brand 1", "Brand 2");
         assertThat(intakes.get(0).getNutriments().getCaloriesPer100())
                 .isGreaterThan(BigDecimal.ZERO);
 
@@ -397,6 +401,7 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .template(template)
                 .foodId("f1")
                 .foodName("Food 1")
+                .brand("Brand 1")
                 .amount(110)
                 .nutriments(new Nutriments(
                         BigDecimal.valueOf(100), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.ZERO,
@@ -408,6 +413,7 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .template(template)
                 .foodId("f2")
                 .foodName("Food 2")
+                .brand("Brand 2")
                 .amount(50)
                 .nutriments(new Nutriments(
                         BigDecimal.valueOf(200), BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.ZERO,

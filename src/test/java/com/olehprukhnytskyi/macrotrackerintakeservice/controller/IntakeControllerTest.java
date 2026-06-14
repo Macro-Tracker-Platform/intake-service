@@ -198,6 +198,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .date(LocalDate.now())
                 .foodId("food-1")
                 .foodName("Oatmeal")
+                .brand("Oat Company")
                 .unitType(UnitType.GRAMS)
                 .availableUnits(List.of(UnitType.GRAMS))
                 .intakePeriod(IntakePeriod.SNACK)
@@ -207,6 +208,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
 
         FoodDto foodDto = FoodDto.builder()
                 .productName("Oatmeal")
+                .brands("Oat Company")
                 .userId(1L)
                 .nutriments(NutrimentsDto.builder()
                         .caloriesPer100(BigDecimal.valueOf(5))
@@ -253,6 +255,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         Intake savedIntake = intakeRepository.findById(intakeResponseDto.getId()).orElseThrow();
         assertThat(savedIntake.getMealGroupId()).isEqualTo("meal-group-1");
         assertThat(savedIntake.getMealTemplateName()).isEqualTo("Morning Porridge");
+        assertThat(savedIntake.getBrand()).isEqualTo("Oat Company");
         verify(foodClientService).getFoodById("food-1");
     }
 

@@ -83,6 +83,7 @@ class IntakeServiceTest {
         FoodDto foodDto = FoodDto.builder()
                 .id("food123")
                 .productName("Apple")
+                .brands("Fresh Farms")
                 .availableUnits(List.of(UnitType.GRAMS))
                 .build();
 
@@ -99,6 +100,7 @@ class IntakeServiceTest {
         when(intakeMapper.toModel(requestDto)).thenReturn(intake);
         doAnswer(inv -> {
             inv.<Intake>getArgument(0).setFoodName((foodDto.getProductName()));
+            inv.<Intake>getArgument(0).setBrand(foodDto.getBrands());
             return null;
         }).when(intakeMapper).updateIntakeFromFoodDto(intake, foodDto);
         when(intakeRepository.saveAndFlush(intake)).thenReturn(savedIntake);
@@ -118,6 +120,7 @@ class IntakeServiceTest {
         assertEquals(userId, intake.getUserId());
         assertEquals(requestDto.getFoodId(), intake.getFoodId());
         assertEquals("Apple", intake.getFoodName());
+        assertEquals("Fresh Farms", intake.getBrand());
         assertEquals(requestId, intake.getRequestId());
     }
 

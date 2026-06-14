@@ -63,6 +63,7 @@ public class MealTemplateApplicationService {
             intake.setUserId(userId);
             intake.setFoodId(item.getFoodId());
             intake.setFoodName(item.getFoodName());
+            intake.setBrand(item.getBrand());
             intake.setDate(date);
             intake.setUnitType(item.getUnitType());
             intake.setIntakePeriod(period);

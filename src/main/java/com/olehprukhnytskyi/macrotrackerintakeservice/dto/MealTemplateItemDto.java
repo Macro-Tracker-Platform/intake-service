@@ -15,6 +15,7 @@ import lombok.NoArgsConstructor;
 public class MealTemplateItemDto {
     private String foodId;
     private String foodName;
+    private String brand;
     private int amount;
     private UnitType unitType;
     private NutrimentsDto nutriments;

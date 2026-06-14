@@ -41,6 +41,9 @@ public class IntakeResponseDto {
     @Schema(description = "Food name", example = "Chicken Breast")
     private String foodName;
 
+    @Schema(description = "Food brand", example = "Organic Farms")
+    private String brand;
+
     @Schema(description = "Consumed amount in grams", example = "150")
     private int amount;
 
