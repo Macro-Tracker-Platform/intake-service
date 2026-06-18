@@ -91,6 +91,18 @@ public class IntakeService {
                 .collect(Collectors.toList());
     }
 
+    @Transactional(readOnly = true)
+    public List<IntakeResponseDto> findByDateRange(LocalDate startDate, LocalDate endDate,
+                                                   Long userId) {
+        log.debug("Fetching intake list for userId={} range={}..{}", userId, startDate, endDate);
+        return intakeRepository
+                .findByUserIdAndDateBetweenOrderByDateAscIntakePeriodAscIdAsc(
+                        userId, startDate, endDate)
+                .stream()
+                .map(intakeMapper::toDto)
+                .collect(Collectors.toList());
+    }
+
     @Transactional
     public IntakeResponseDto update(Long id, UpdateIntakeRequestDto request,
                                     Long userId) {

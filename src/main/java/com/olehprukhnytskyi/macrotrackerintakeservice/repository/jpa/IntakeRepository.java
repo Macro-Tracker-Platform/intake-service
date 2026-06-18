@@ -16,6 +16,12 @@ import org.springframework.transaction.annotation.Transactional;
 public interface IntakeRepository extends JpaRepository<Intake, Long> {
     List<Intake> findByUserIdAndDate(Long userId, LocalDate date);
 
+    List<Intake> findByUserIdAndDateBetweenOrderByDateAscIntakePeriodAscIdAsc(
+            Long userId,
+            LocalDate startDate,
+            LocalDate endDate
+    );
+
     List<Intake> findByUserId(Long userId);
 
     Optional<Intake> findByIdAndUserId(Long id, Long userId);

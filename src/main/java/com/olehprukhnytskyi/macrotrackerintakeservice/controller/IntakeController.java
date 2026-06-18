@@ -64,6 +64,21 @@ public class IntakeController {
     }
 
     @Operation(
+            summary = "Get intake records by date range",
+            description = "Internal endpoint used by BFF export to fetch all food logs "
+                    + "for a bounded inclusive period"
+    )
+    @GetMapping("/range")
+    public ResponseEntity<List<IntakeResponseDto>> findByDateRange(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate startDate,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate endDate) {
+        log.debug("Fetching intake records for userId={} range={}..{}",
+                userId, startDate, endDate);
+        return ResponseEntity.ok(intakeService.findByDateRange(startDate, endDate, userId));
+    }
+
+    @Operation(
             summary = "Add food intake",
             description = "Record food consumption with automatic nutrition calculation"
     )
