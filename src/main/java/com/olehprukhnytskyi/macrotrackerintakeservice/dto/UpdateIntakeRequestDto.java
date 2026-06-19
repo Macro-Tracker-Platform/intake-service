@@ -43,4 +43,7 @@ public class UpdateIntakeRequestDto {
     private IntakePeriod intakePeriod;
 
     private UnitType unitType;
+
+    @Schema(description = "Client's last known server version", example = "2")
+    private Long version;
 }

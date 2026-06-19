@@ -40,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
         description = "Manage reusable meal templates (grouping multiple food items)"
 )
 public class MealController {
+    private static final String X_DEVICE_ID = "X-Device-Id";
     private final MealService mealService;
 
     @Operation(
@@ -85,6 +86,7 @@ public class MealController {
     public ResponseEntity<List<IntakeResponseDto>> applyTemplate(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
             @RequestHeader(CustomHeaders.X_REQUEST_ID) UUID requestId,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @PathVariable Long templateId,
             @Parameter(description = "Date to apply the template to (yyyy-MM-dd)",
                     required = true)
@@ -94,7 +96,8 @@ public class MealController {
             @RequestParam UUID mealGroupId) {
         log.info("Applying template id={} for userId={} on date={}", templateId, userId, date);
         List<IntakeResponseDto> createdIntakes = mealService
-                .applyTemplate(templateId, date, period, mealGroupId, userId, requestId);
+                .applyTemplate(templateId, date, period, mealGroupId, userId, requestId,
+                        deviceId);
         log.debug("Template applied successfully, created {} records", createdIntakes.size());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdIntakes);
     }
@@ -109,6 +112,7 @@ public class MealController {
     public ResponseEntity<IntakeResponseDto> applyRecipe(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
             @RequestHeader(CustomHeaders.X_REQUEST_ID) UUID requestId,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @PathVariable Long templateId,
             @Parameter(description = "Date to apply the recipe to (yyyy-MM-dd)",
                     required = true)
@@ -119,7 +123,7 @@ public class MealController {
         log.info("Applying recipe id={} for userId={} on date={}", templateId, userId, date);
         IntakeResponseDto createdIntake = mealService.applyRecipe(templateId,
                 request.getConsumedAmount(), request.getUnitType(), date, period, userId,
-                requestId);
+                requestId, deviceId);
         log.debug("Recipe applied successfully, created intake id={}", createdIntake.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(createdIntake);
     }

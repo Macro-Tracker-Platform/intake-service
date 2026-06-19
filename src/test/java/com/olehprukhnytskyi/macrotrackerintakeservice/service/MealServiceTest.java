@@ -20,6 +20,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.MealTemplateMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
+import com.olehprukhnytskyi.macrotrackerintakeservice.producer.CacheInvalidationProducer;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
@@ -49,6 +50,8 @@ class MealServiceTest {
     private MealTemplateApplicationRepository applicationRepository;
     @Mock
     private MealTemplateApplicationService applicationService;
+    @Mock
+    private CacheInvalidationProducer cacheInvalidationProducer;
     @Mock
     private IntakeMapper intakeMapper;
     @Mock

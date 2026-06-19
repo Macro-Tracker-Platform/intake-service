@@ -3,6 +3,7 @@ package com.olehprukhnytskyi.macrotrackerintakeservice.dto;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import io.swagger.v3.oas.annotations.media.Schema;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
@@ -68,4 +69,10 @@ public class IntakeResponseDto {
     private String moderationStatus;
 
     private boolean verifiedByAdmin;
+
+    private Instant updatedAt;
+
+    private boolean deleted;
+
+    private Long version;
 }

@@ -2,6 +2,8 @@ package com.olehprukhnytskyi.macrotrackerintakeservice.controller;
 
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeSyncPushRequestDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeSyncResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.IntakeService;
 import com.olehprukhnytskyi.util.CustomHeaders;
@@ -9,6 +11,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -37,6 +40,7 @@ import org.springframework.web.bind.annotation.RestController;
         description = "Track and manage daily food consumption with nutrition calculations"
 )
 public class IntakeController {
+    private static final String X_DEVICE_ID = "X-Device-Id";
     private final IntakeService intakeService;
 
     @Operation(
@@ -79,6 +83,33 @@ public class IntakeController {
     }
 
     @Operation(
+            summary = "Pull intake cache changes",
+            description = "Retrieve all intake rows changed after the supplied timestamp, "
+                    + "including soft-deleted rows"
+    )
+    @GetMapping("/sync")
+    public ResponseEntity<IntakeSyncResponseDto> pullSync(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant since,
+            @RequestParam(defaultValue = "100") int limit) {
+        Instant effectiveSince = since == null ? Instant.EPOCH : since;
+        return ResponseEntity.ok(intakeService.pullSync(userId, effectiveSince, limit));
+    }
+
+    @Operation(
+            summary = "Push local intake cache changes",
+            description = "Apply client-side intake cache changes using last-write-wins timestamps"
+    )
+    @PostMapping("/sync")
+    public ResponseEntity<IntakeSyncResponseDto> pushSync(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
+            @Valid @RequestBody IntakeSyncPushRequestDto requestDto) {
+        return ResponseEntity.ok(intakeService.pushSync(userId, requestDto, deviceId));
+    }
+
+    @Operation(
             summary = "Add food intake",
             description = "Record food consumption with automatic nutrition calculation"
     )
@@ -86,9 +117,10 @@ public class IntakeController {
     public ResponseEntity<IntakeResponseDto> addIntake(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
             @RequestHeader(CustomHeaders.X_REQUEST_ID) UUID requestId,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @Valid @RequestBody IntakeRequestDto intakeRequest) {
         log.info("Creating new intake record for userId={}", userId);
-        IntakeResponseDto saved = intakeService.save(intakeRequest, userId, requestId);
+        IntakeResponseDto saved = intakeService.save(intakeRequest, userId, requestId, deviceId);
         log.debug("Intake record created successfully for userId={} intakeId={}",
                 userId, saved.getId());
         return ResponseEntity.status(HttpStatus.CREATED)
@@ -103,9 +135,10 @@ public class IntakeController {
     public ResponseEntity<IntakeResponseDto> updateIntake(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
             @PathVariable Long id,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @Valid @RequestBody UpdateIntakeRequestDto intakeRequest) {
         log.info("Updating intake record id={} for userId={}", id, userId);
-        IntakeResponseDto updated = intakeService.update(id, intakeRequest, userId);
+        IntakeResponseDto updated = intakeService.update(id, intakeRequest, userId, deviceId);
         log.debug("Intake record updated id={} for userId={}", id, userId);
         return ResponseEntity.ok(updated);
     }
@@ -117,9 +150,10 @@ public class IntakeController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deleteById(
             @PathVariable Long id,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId) {
         log.info("Deleting intake record id={} for userId={}", id, userId);
-        intakeService.deleteById(id, userId);
+        intakeService.deleteById(id, userId, deviceId);
         log.debug("Deleted intake record id={} for userId={}", id, userId);
         return ResponseEntity.noContent().build();
     }
@@ -133,11 +167,12 @@ public class IntakeController {
     @DeleteMapping("/group/{mealGroupId}")
     public ResponseEntity<Void> undoIntakeGroup(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @Parameter(description = "UUID string identifying the batch of records",
                     required = true)
             @PathVariable UUID mealGroupId) {
         log.info("Request to revert intake group {} for userId={}", mealGroupId, userId);
-        intakeService.undoIntakeGroup(mealGroupId, userId);
+        intakeService.undoIntakeGroup(mealGroupId, userId, deviceId);
         log.debug("Intake group {} reverted successfully", mealGroupId);
         return ResponseEntity.noContent().build();
     }

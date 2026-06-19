@@ -16,6 +16,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateItem;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
+import com.olehprukhnytskyi.macrotrackerintakeservice.producer.CacheInvalidationProducer;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
@@ -44,11 +45,13 @@ import org.springframework.transaction.annotation.Transactional;
 @Service
 @RequiredArgsConstructor
 public class MealService {
+    private static final String INTAKE_DOMAIN = "INTAKE";
     private final NutrientStrategyFactory strategyFactory;
     private final IntakeRepository intakeRepository;
     private final MealTemplateRepository mealTemplateRepository;
     private final MealTemplateApplicationRepository applicationRepository;
     private final MealTemplateApplicationService applicationService;
+    private final CacheInvalidationProducer cacheInvalidationProducer;
     private final IntakeMapper intakeMapper;
     private final MealTemplateMapper mealTemplateMapper;
     private final NutrimentsMapper nutrimentsMapper;
@@ -102,6 +105,14 @@ public class MealService {
     public List<IntakeResponseDto> applyTemplate(Long templateId, LocalDate date,
                                                  IntakePeriod period, UUID mealGroupId,
                                                  Long userId, UUID requestId) {
+        return applyTemplate(templateId, date, period, mealGroupId, userId, requestId, null);
+    }
+
+    @CacheEvict(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #date")
+    public List<IntakeResponseDto> applyTemplate(Long templateId, LocalDate date,
+                                                 IntakePeriod period, UUID mealGroupId,
+                                                 Long userId, UUID requestId,
+                                                 String originDeviceId) {
         log.info("Applying template id={} for userId={} on date={}", templateId, userId, date);
         List<IntakeResponseDto> existing = findAppliedIntakes(userId, requestId);
         if (existing != null) {
@@ -109,8 +120,11 @@ public class MealService {
         }
         IntakePeriod resolvedPeriod = period != null ? period : IntakePeriod.SNACK;
         try {
-            return applicationService.create(templateId, date, resolvedPeriod, mealGroupId,
+            List<IntakeResponseDto> created = applicationService.create(
+                    templateId, date, resolvedPeriod, mealGroupId,
                     userId, requestId);
+            cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
+            return created;
         } catch (DataIntegrityViolationException exception) {
             List<IntakeResponseDto> concurrentlyCreated = findAppliedIntakes(userId, requestId);
             if (concurrentlyCreated != null) {
@@ -125,6 +139,16 @@ public class MealService {
                                          UnitType unitType,
                                          LocalDate date, IntakePeriod period,
                                          Long userId, UUID requestId) {
+        return applyRecipe(templateId, consumedAmount, unitType, date, period, userId,
+                requestId, null);
+    }
+
+    @CacheEvict(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #date")
+    public IntakeResponseDto applyRecipe(Long templateId, Integer consumedAmount,
+                                         UnitType unitType,
+                                         LocalDate date, IntakePeriod period,
+                                         Long userId, UUID requestId,
+                                         String originDeviceId) {
         log.info("Applying recipe template id={} for userId={} on date={}",
                 templateId, userId, date);
         List<IntakeResponseDto> existing = findAppliedIntakes(userId, requestId);
@@ -133,8 +157,11 @@ public class MealService {
         }
         IntakePeriod resolvedPeriod = period != null ? period : IntakePeriod.SNACK;
         try {
-            return applicationService.createRecipe(templateId, consumedAmount, unitType,
+            IntakeResponseDto created = applicationService.createRecipe(
+                    templateId, consumedAmount, unitType,
                     date, resolvedPeriod, userId, requestId);
+            cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
+            return created;
         } catch (DataIntegrityViolationException exception) {
             List<IntakeResponseDto> concurrentlyCreated = findAppliedIntakes(userId, requestId);
             if (concurrentlyCreated != null && !concurrentlyCreated.isEmpty()) {

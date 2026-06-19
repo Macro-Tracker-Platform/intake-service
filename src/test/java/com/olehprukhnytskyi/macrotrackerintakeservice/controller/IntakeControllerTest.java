@@ -247,9 +247,11 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 mvcResult.getResponse().getContentAsString(), IntakeResponseDto.class);
         assertThat(intakeResponseDto)
                 .usingRecursiveComparison()
-                .ignoringFields("id")
+                .ignoringFields("id", "updatedAt", "version")
                 .ignoringCollectionOrder()
                 .isEqualTo(responseDto);
+        assertThat(intakeResponseDto.getUpdatedAt()).isNotNull();
+        assertThat(intakeResponseDto.getVersion()).isZero();
         assertThat(intakeResponseDto.getMealGroupId()).isEqualTo("meal-group-1");
         assertThat(intakeResponseDto.getMealTemplateName()).isEqualTo("Morning Porridge");
         Intake savedIntake = intakeRepository.findById(intakeResponseDto.getId()).orElseThrow();
@@ -373,7 +375,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         intake.getNutriments().setFat(BigDecimal.valueOf(140));
         intake.getNutriments().setProtein(BigDecimal.valueOf(160));
 
-        IntakeResponseDto responseDto = IntakeResponseDto.builder()
+        IntakeResponseDto expectedResponseDto = IntakeResponseDto.builder()
                 .id(intake.getId())
                 .foodId("1")
                 .foodName("Potato")
@@ -384,17 +386,27 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .nutriments(nutrimentsMapper.toDto(intake.getNutriments()))
                 .intakePeriod(IntakePeriod.BREAKFAST)
                 .build();
-        String expected = objectMapper.writeValueAsString(responseDto);
 
         // When
-        mockMvc.perform(
+        MvcResult mvcResult = mockMvc.perform(
                         patch("/api/intake/{id}", intake.getId())
                                 .header(CustomHeaders.X_USER_ID, 1L)
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(requestJson)
                 )
                 .andExpect(status().isOk())
-                .andExpect(content().json(expected));
+                .andReturn();
+
+        // Then
+        IntakeResponseDto actualResponseDto = objectMapper.readValue(
+                mvcResult.getResponse().getContentAsString(), IntakeResponseDto.class);
+        assertThat(actualResponseDto)
+                .usingRecursiveComparison()
+                .ignoringFields("updatedAt", "version")
+                .ignoringCollectionOrder()
+                .isEqualTo(expectedResponseDto);
+        assertThat(actualResponseDto.getUpdatedAt()).isNotNull();
+        assertThat(actualResponseDto.getVersion()).isNotNull();
     }
 
     @Test
@@ -415,7 +427,9 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .andExpect(content().string(""));
 
         // Then
-        assertThat(intakeRepository.findById(intakeId)).isEmpty();
+        Intake deletedIntake = intakeRepository.findById(intakeId).orElseThrow();
+        assertThat(deletedIntake.isDeleted()).isTrue();
+        assertThat(deletedIntake.getUpdatedAt()).isNotNull();
     }
 
     @Test

@@ -27,3 +27,5 @@ databaseChangeLog:
       file: db/changelog/changes/12-add-brand.yaml
   - include:
       file: db/changelog/changes/13-add-recipe-fields-to-meal-template.yaml
+  - include:
+      file: db/changelog/changes/14-add-intake-sync-support.yaml
