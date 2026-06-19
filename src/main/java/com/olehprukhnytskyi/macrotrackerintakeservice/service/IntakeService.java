@@ -332,11 +332,8 @@ public class IntakeService {
                 manualEvict(userId, oldDate);
                 return Optional.of(intakeMapper.toSyncDto(saved));
             }
-            if (!change.getUpdatedAt().isAfter(intake.getUpdatedAt())) {
-                return Optional.of(intakeMapper.toSyncDto(intake));
-            }
             applySyncState(intake, change);
-            intake.setUpdatedAt(change.getUpdatedAt());
+            intake.setUpdatedAt(now());
             Intake saved = intakeRepository.saveAndFlush(intake);
             manualEvict(userId, oldDate);
             manualEvict(userId, saved.getDate());
@@ -350,7 +347,7 @@ public class IntakeService {
         Intake intake = new Intake();
         intake.setUserId(userId);
         applySyncState(intake, change);
-        intake.setUpdatedAt(change.getUpdatedAt());
+        intake.setUpdatedAt(now());
         Intake saved = intakeRepository.saveAndFlush(intake);
         manualEvict(userId, saved.getDate());
         return Optional.of(intakeMapper.toSyncDto(saved));

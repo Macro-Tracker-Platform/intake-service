@@ -236,8 +236,8 @@ class IntakeServiceTest {
     }
 
     @Test
-    @DisplayName("When sync push is older, should keep server row")
-    void pushSync_whenChangeIsOlder_shouldKeepServerRow() {
+    @DisplayName("When sync push has older client time, should apply server-received change")
+    void pushSync_whenChangeIsOlder_shouldApplyServerReceivedChange() {
         Instant serverUpdatedAt = Instant.parse("2026-06-19T08:00:00Z");
         Intake existing = Intake.builder()
                 .id(10L)
@@ -251,7 +251,7 @@ class IntakeServiceTest {
                 .build();
         IntakeSyncItemDto serverDto = IntakeSyncItemDto.builder()
                 .id(10L)
-                .amount(100)
+                .amount(200)
                 .updatedAt(serverUpdatedAt)
                 .build();
         IntakeSyncItemDto staleChange = IntakeSyncItemDto.builder()
@@ -268,6 +268,14 @@ class IntakeServiceTest {
 
         when(intakeRepository.findAnyByIdAndUserId(10L, userId))
                 .thenReturn(Optional.of(existing));
+        doAnswer(invocation -> {
+            IntakeSyncItemDto dto = invocation.getArgument(0);
+            Intake intake = invocation.getArgument(1);
+            intake.setAmount(dto.getAmount());
+            return null;
+        }).when(intakeMapper)
+                .updateEntityFromSyncDto(any(IntakeSyncItemDto.class), any(Intake.class));
+        when(intakeRepository.saveAndFlush(existing)).thenReturn(existing);
         when(intakeMapper.toSyncDto(existing)).thenReturn(serverDto);
 
         IntakeSyncResponseDto response = intakeService.pushSync(userId,
@@ -275,8 +283,10 @@ class IntakeServiceTest {
                         .changes(List.of(staleChange))
                         .build());
 
-        assertEquals(100, response.getData().getFirst().getAmount());
-        verify(intakeRepository, never()).saveAndFlush(any());
+        assertEquals(200, response.getData().getFirst().getAmount());
+        assertEquals(200, existing.getAmount());
+        assertTrue(existing.getUpdatedAt().isAfter(serverUpdatedAt));
+        verify(intakeRepository).saveAndFlush(existing);
     }
 
     @Test
