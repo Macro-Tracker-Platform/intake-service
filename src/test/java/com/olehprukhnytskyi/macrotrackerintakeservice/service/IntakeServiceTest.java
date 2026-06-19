@@ -278,4 +278,45 @@ class IntakeServiceTest {
         assertEquals(100, response.getData().getFirst().getAmount());
         verify(intakeRepository, never()).saveAndFlush(any());
     }
+
+    @Test
+    @DisplayName("When sync delete is older, should still tombstone server row")
+    void pushSync_whenDeleteIsOlder_shouldTombstoneServerRow() {
+        Instant serverUpdatedAt = Instant.parse("2026-06-19T08:00:00Z");
+        Intake existing = Intake.builder()
+                .id(10L)
+                .userId(userId)
+                .foodId("food123")
+                .amount(100)
+                .unitType(UnitType.GRAMS)
+                .date(LocalDate.of(2026, 6, 19))
+                .nutriments(new Nutriments())
+                .updatedAt(serverUpdatedAt)
+                .build();
+        IntakeSyncItemDto tombstoneDto = IntakeSyncItemDto.builder()
+                .id(10L)
+                .updatedAt(serverUpdatedAt)
+                .deleted(true)
+                .build();
+        IntakeSyncItemDto staleDelete = IntakeSyncItemDto.builder()
+                .id(10L)
+                .updatedAt(serverUpdatedAt.minusSeconds(60))
+                .deleted(true)
+                .build();
+
+        when(intakeRepository.findAnyByIdAndUserId(10L, userId))
+                .thenReturn(Optional.of(existing));
+        when(intakeRepository.saveAndFlush(existing)).thenReturn(existing);
+        when(intakeMapper.toSyncDto(existing)).thenReturn(tombstoneDto);
+
+        IntakeSyncResponseDto response = intakeService.pushSync(userId,
+                IntakeSyncPushRequestDto.builder()
+                        .changes(List.of(staleDelete))
+                        .build());
+
+        assertTrue(existing.isDeleted());
+        assertTrue(existing.getUpdatedAt().isAfter(serverUpdatedAt));
+        assertTrue(response.getData().getFirst().isDeleted());
+        verify(intakeRepository).saveAndFlush(existing);
+    }
 }

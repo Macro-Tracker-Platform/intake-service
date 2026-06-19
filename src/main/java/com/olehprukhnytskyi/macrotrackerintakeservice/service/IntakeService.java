@@ -324,10 +324,17 @@ public class IntakeService {
         Optional<Intake> existing = findExistingSyncTarget(userId, change);
         if (existing.isPresent()) {
             Intake intake = existing.get();
+            LocalDate oldDate = intake.getDate();
+            if (change.isDeleted()) {
+                intake.setDeleted(true);
+                intake.setUpdatedAt(now());
+                Intake saved = intakeRepository.saveAndFlush(intake);
+                manualEvict(userId, oldDate);
+                return Optional.of(intakeMapper.toSyncDto(saved));
+            }
             if (!change.getUpdatedAt().isAfter(intake.getUpdatedAt())) {
                 return Optional.of(intakeMapper.toSyncDto(intake));
             }
-            LocalDate oldDate = intake.getDate();
             applySyncState(intake, change);
             intake.setUpdatedAt(change.getUpdatedAt());
             Intake saved = intakeRepository.saveAndFlush(intake);
