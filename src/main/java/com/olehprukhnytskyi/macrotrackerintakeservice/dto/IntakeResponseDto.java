@@ -22,6 +22,12 @@ public class IntakeResponseDto {
     private Long id;
 
     @Schema(
+            description = "Client-generated idempotency key",
+            example = "3fa85f64-5717-4562-b3fc-2c963f66afa6"
+    )
+    private String requestId;
+
+    @Schema(
             description = "ID grouping multiple foods consumed in one meal (e.g., from a template)",
             example = "987fc3-a1b2-44"
     )

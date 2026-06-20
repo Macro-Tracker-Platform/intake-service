@@ -182,6 +182,8 @@ class IntakeControllerTest extends AbstractIntegrationTest {
     @DisplayName("When request is not duplicated, should return created intake")
     void addIntake_whenNotDuplicated_shouldReturnCreatedWithBody() throws Exception {
         // Given
+        UUID requestId = UUID.randomUUID();
+
         IntakeResponseDto responseDto = IntakeResponseDto.builder()
                 .id(1L)
                 .amount(200)
@@ -204,6 +206,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .intakePeriod(IntakePeriod.SNACK)
                 .mealGroupId("meal-group-1")
                 .mealTemplateName("Morning Porridge")
+                .requestId(requestId.toString())
                 .build();
 
         FoodDto foodDto = FoodDto.builder()
@@ -236,7 +239,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
         // When
         MvcResult mvcResult = mockMvc.perform(post("/api/intake")
                         .header(CustomHeaders.X_USER_ID, 1L)
-                        .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                        .header(CustomHeaders.X_REQUEST_ID, requestId)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(jsonRequest))
                 .andExpect(status().isCreated())
@@ -377,6 +380,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
 
         IntakeResponseDto expectedResponseDto = IntakeResponseDto.builder()
                 .id(intake.getId())
+                .requestId(intake.getRequestId() == null ? null : intake.getRequestId().toString())
                 .foodId("1")
                 .foodName("Potato")
                 .date(LocalDate.parse("2025-09-06"))

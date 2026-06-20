@@ -325,6 +325,9 @@ public class IntakeService {
         if (existing.isPresent()) {
             Intake intake = existing.get();
             LocalDate oldDate = intake.getDate();
+            if (intake.isDeleted() && !change.isDeleted()) {
+                return Optional.of(intakeMapper.toSyncDto(intake));
+            }
             if (change.isDeleted()) {
                 intake.setDeleted(true);
                 intake.setUpdatedAt(now());
@@ -341,7 +344,18 @@ public class IntakeService {
         }
 
         if (change.isDeleted()) {
-            return Optional.empty();
+            if (!canCreateIntakeTombstone(change)) {
+                return Optional.empty();
+            }
+            Intake intake = new Intake();
+            intake.setUserId(userId);
+            validateActiveSyncChange(change);
+            intakeMapper.updateEntityFromSyncDto(change, intake);
+            intake.setDeleted(true);
+            intake.setUpdatedAt(now());
+            Intake saved = intakeRepository.saveAndFlush(intake);
+            manualEvict(userId, saved.getDate());
+            return Optional.of(intakeMapper.toSyncDto(saved));
         }
         validateActiveSyncChange(change);
         Intake intake = new Intake();
@@ -364,6 +378,14 @@ public class IntakeService {
             return intakeRepository.findAnyByUserIdAndRequestId(userId, change.getRequestId());
         }
         return Optional.empty();
+    }
+
+    private boolean canCreateIntakeTombstone(IntakeSyncItemDto change) {
+        return change.getRequestId() != null
+                && change.getFoodId() != null
+                && change.getDate() != null
+                && change.getAmount() != null
+                && change.getNutriments() != null;
     }
 
     private void applySyncState(Intake intake, IntakeSyncItemDto change) {
