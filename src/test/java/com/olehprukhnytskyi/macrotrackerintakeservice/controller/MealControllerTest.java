@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -15,6 +16,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.config.AbstractIntegration
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.FoodDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.NutrimentsDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateMealTemplateDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateItem;
@@ -27,6 +29,7 @@ import com.olehprukhnytskyi.util.CustomHeaders;
 import com.olehprukhnytskyi.util.UnitType;
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import org.junit.jupiter.api.BeforeAll;
@@ -174,6 +177,117 @@ class MealControllerTest extends AbstractIntegrationTest {
                                 .content(objectMapper.writeValueAsString(request))
                 )
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("When update request is valid, should update template fields and item order")
+    void updateTemplate_whenValidRequest_shouldUpdateTemplateAndItems() throws Exception {
+        Long userId = 107L;
+        MealTemplate template = createAndSaveTemplateInDb(userId, "Lunch Box");
+        UpdateMealTemplateDto request = UpdateMealTemplateDto.builder()
+                .name("Updated Lunch Box")
+                .items(List.of(
+                        UpdateMealTemplateDto.TemplateItemDto.builder()
+                                .foodId("f2")
+                                .amount(80)
+                                .unitType(UnitType.GRAMS)
+                                .build(),
+                        UpdateMealTemplateDto.TemplateItemDto.builder()
+                                .foodId("f3")
+                                .amount(25)
+                                .unitType(UnitType.GRAMS)
+                                .build()
+                ))
+                .build();
+
+        given(foodClientService.getFoodsByIds(anyList()))
+                .willReturn(List.of(createMockFood("f3", "Food 3", 300)));
+
+        mockMvc.perform(
+                        put("/api/meal-templates/{templateId}", template.getId())
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(request))
+                )
+                .andExpect(status().isOk());
+
+        MealTemplate updated = mealTemplateRepository.findById(template.getId()).get();
+        assertThat(updated.getName()).isEqualTo("Updated Lunch Box");
+        assertThat(updated.isRecipe()).isFalse();
+        assertThat(updated.getItems()).hasSize(2);
+        assertThat(updated.getItems())
+                .extracting(MealTemplateItem::getFoodId)
+                .containsExactly("f2", "f3");
+        assertThat(updated.getItems().get(0).getAmount()).isEqualTo(80);
+        assertThat(updated.getItems().get(1).getFoodName()).isEqualTo("Food 3");
+    }
+
+    @Test
+    @DisplayName("When recipe update request is valid, should update yield and ingredients")
+    void updateTemplate_whenRecipeRequest_shouldUpdateRecipeFieldsAndItems() throws Exception {
+        Long userId = 108L;
+        MealTemplateRequestDto createRequest = MealTemplateRequestDto.builder()
+                .name("Cheese Pie")
+                .recipe(true)
+                .totalYieldAmount(800)
+                .yieldUnitType(UnitType.GRAMS)
+                .items(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
+                        .foodId("food-cheese")
+                        .amount(1000)
+                        .unitType(UnitType.GRAMS)
+                        .build()))
+                .build();
+
+        given(foodClientService.getFoodsByIds(anyList()))
+                .willReturn(List.of(createMockFood("food-cheese", "Cheese", 250)))
+                .willReturn(List.of(createMockFood("food-flour", "Flour", 350)));
+
+        String responseJson = mockMvc.perform(
+                        post("/api/meal-templates")
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(createRequest))
+                )
+                .andExpect(status().isCreated())
+                .andReturn().getResponse().getContentAsString();
+        Long templateId = Long.parseLong(responseJson);
+
+        UpdateMealTemplateDto updateRequest = UpdateMealTemplateDto.builder()
+                .name("Cheese Buns")
+                .recipe(true)
+                .totalYieldAmount(12)
+                .yieldUnitType(UnitType.PIECES)
+                .items(List.of(
+                        UpdateMealTemplateDto.TemplateItemDto.builder()
+                                .foodId("food-cheese")
+                                .amount(1000)
+                                .unitType(UnitType.GRAMS)
+                                .build(),
+                        UpdateMealTemplateDto.TemplateItemDto.builder()
+                                .foodId("food-flour")
+                                .amount(200)
+                                .unitType(UnitType.GRAMS)
+                                .build()
+                ))
+                .build();
+
+        mockMvc.perform(
+                        put("/api/meal-templates/{templateId}", templateId)
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .contentType(MediaType.APPLICATION_JSON)
+                                .content(objectMapper.writeValueAsString(updateRequest))
+                )
+                .andExpect(status().isOk());
+
+        MealTemplate updated = mealTemplateRepository.findById(templateId).get();
+        assertThat(updated.getName()).isEqualTo("Cheese Buns");
+        assertThat(updated.isRecipe()).isTrue();
+        assertThat(updated.getTotalYieldAmount()).isEqualTo(12);
+        assertThat(updated.getYieldUnitType()).isEqualTo(UnitType.PIECES);
+        assertThat(updated.getItems())
+                .extracting(MealTemplateItem::getFoodId)
+                .containsExactly("food-cheese", "food-flour");
     }
 
     @Test
@@ -401,7 +515,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         assertThat(intakes)
                 .extracting(Intake::getBrand)
                 .containsExactlyInAnyOrder("Brand 1", "Brand 2");
-        assertThat(intakes.get(0).getNutriments().getCaloriesPer100())
+        assertThat(intakes.getFirst().getNutriments().getCaloriesPer100())
                 .isGreaterThan(BigDecimal.ZERO);
 
         mockMvc.perform(
@@ -419,7 +533,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         Long userId = 103L;
         LocalDate date = LocalDate.now();
         UUID requestId = UUID.randomUUID();
-        MealTemplate template = createAndSaveRecipeTemplateInDb(userId, "Cheese Pie");
+        MealTemplate template = createAndSaveRecipeTemplateInDb(userId);
 
         String firstResponse = mockMvc.perform(
                         post("/api/meal-templates/{templateId}/apply-recipe", template.getId())
@@ -457,7 +571,7 @@ class MealControllerTest extends AbstractIntegrationTest {
         assertThat(repeatedResponse).isEqualTo(firstResponse);
         List<Intake> intakes = intakeRepository.findByUserIdAndDate(userId, date);
         assertThat(intakes).hasSize(1);
-        Intake intake = intakes.get(0);
+        Intake intake = intakes.getFirst();
         assertThat(intake.getFoodId()).isEqualTo("RECIPE_" + template.getId());
         assertThat(intake.getNutriments().getCalories()).isEqualByComparingTo("250.00");
         assertThat(intake.getNutriments().getCaloriesPer100()).isEqualByComparingTo("125.00");
@@ -486,7 +600,7 @@ class MealControllerTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.nutriments.calories").value(166.67))
                 .andExpect(jsonPath("$.nutriments.caloriesPerPiece").value(83.33));
 
-        Intake intake = intakeRepository.findByUserIdAndDate(userId, date).get(0);
+        Intake intake = intakeRepository.findByUserIdAndDate(userId, date).getFirst();
         assertThat(intake.getNutriments().getCaloriesPer100()).isNull();
         assertThat(intake.getNutriments().getCaloriesPerPiece()).isEqualByComparingTo("83.33");
     }
@@ -513,7 +627,7 @@ class MealControllerTest extends AbstractIntegrationTest {
     @DisplayName("When recipe is applied through regular endpoint, should return 400")
     void applyTemplate_whenTemplateIsRecipe_shouldReturn400() throws Exception {
         Long userId = 104L;
-        MealTemplate template = createAndSaveRecipeTemplateInDb(userId, "Cheese Pie");
+        MealTemplate template = createAndSaveRecipeTemplateInDb(userId);
 
         mockMvc.perform(
                         post("/api/meal-templates/{templateId}/apply", template.getId())
@@ -592,12 +706,12 @@ class MealControllerTest extends AbstractIntegrationTest {
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO))
                 .build();
 
-        template.setItems(List.of(item1, item2));
+        template.setItems(new ArrayList<>(List.of(item1, item2)));
         return mealTemplateRepository.save(template);
     }
 
-    private MealTemplate createAndSaveRecipeTemplateInDb(Long userId, String name) {
-        return createAndSaveRecipeTemplateInDb(userId, name, 800, UnitType.GRAMS);
+    private MealTemplate createAndSaveRecipeTemplateInDb(Long userId) {
+        return createAndSaveRecipeTemplateInDb(userId, "Cheese Pie", 800, UnitType.GRAMS);
     }
 
     private MealTemplate createAndSaveRecipeTemplateInDb(Long userId, String name,
@@ -637,7 +751,7 @@ class MealControllerTest extends AbstractIntegrationTest {
                         .build())
                 .build();
 
-        template.setItems(List.of(item1, item2));
+        template.setItems(new ArrayList<>(List.of(item1, item2)));
         return mealTemplateRepository.save(template);
     }
 }

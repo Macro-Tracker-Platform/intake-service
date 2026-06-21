@@ -247,21 +247,34 @@ public class MealService {
         Map<String, UpdateMealTemplateDto.TemplateItemDto> incomingMap = dtos.stream()
                 .collect(Collectors.toMap(UpdateMealTemplateDto.TemplateItemDto::getFoodId,
                         item -> item, (oldV, newV) -> oldV));
+        Map<String, MealTemplateItem> existingItems = template.getItems().stream()
+                .collect(Collectors.toMap(MealTemplateItem::getFoodId,
+                        item -> item, (oldV, newV) -> oldV));
         template.getItems().removeIf(item -> !incomingMap.containsKey(item.getFoodId()));
-        for (UpdateMealTemplateDto.TemplateItemDto dto : dtos) {
-            template.getItems().stream()
-                    .filter(item -> item.getFoodId().equals(dto.getFoodId()))
-                    .findFirst()
-                    .ifPresentOrElse(
-                            existing -> updateItemState(existing, dto),
-                            () -> {
-                                validateNewItemFields(dto);
-                                template.getItems().add(buildItem(
-                                        template, newFoodsMap.get(dto.getFoodId()),
-                                        dto.getAmount(), dto.getUnitType())
-                                );
-                            });
+        for (int position = 0; position < dtos.size(); position++) {
+            UpdateMealTemplateDto.TemplateItemDto dto = dtos.get(position);
+            MealTemplateItem item = existingItems.get(dto.getFoodId());
+            if (item != null) {
+                updateItemState(item, dto);
+            } else {
+                validateNewItemFields(dto);
+                item = buildItem(template, newFoodsMap.get(dto.getFoodId()),
+                        dto.getAmount(), dto.getUnitType());
+                template.getItems().add(item);
+            }
+            moveItemToRequestedPosition(template.getItems(), item, position);
         }
+    }
+
+    private void moveItemToRequestedPosition(List<MealTemplateItem> items,
+                                             MealTemplateItem item,
+                                             int requestedPosition) {
+        int currentPosition = items.indexOf(item);
+        if (currentPosition == requestedPosition) {
+            return;
+        }
+        items.remove(currentPosition);
+        items.add(requestedPosition, item);
     }
 
     private void updateItemState(MealTemplateItem item,
