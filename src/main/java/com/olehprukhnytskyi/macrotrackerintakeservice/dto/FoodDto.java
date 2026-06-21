@@ -50,4 +50,8 @@ public class FoodDto {
     private String moderationStatus;
 
     private boolean verifiedByAdmin;
+
+    @Schema(description = "Indicates whether the current user marked this product as favorite")
+    @Builder.Default
+    private boolean favorite = false;
 }
