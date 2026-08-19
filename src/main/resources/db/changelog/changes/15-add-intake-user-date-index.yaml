@@ -1,0 +1,13 @@
+databaseChangeLog:
+  - changeSet:
+      id: 15-add-intake-user-date-index
+      author: codex
+      changes:
+        - createIndex:
+            tableName: intake
+            indexName: idx_intake_user_date
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: date

@@ -1,6 +1,7 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa;
 
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
+import com.olehprukhnytskyi.macrotrackerintakeservice.projection.DailyIntakeSummaryProjection;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -16,6 +17,25 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Repository
 public interface IntakeRepository extends JpaRepository<Intake, Long> {
+    @Query("""
+            select i.date as date,
+                   sum(i.nutriments.calories) as calories,
+                   sum(i.nutriments.protein) as protein,
+                   sum(i.nutriments.fat) as fat,
+                   sum(i.nutriments.carbohydrates) as carbohydrates
+            from Intake i
+            where i.userId = :userId
+              and i.date between :startDate and :endDate
+              and i.deleted = false
+            group by i.date
+            order by i.date
+            """)
+    List<DailyIntakeSummaryProjection> summarizeByUserIdAndDateRange(
+            @Param("userId") Long userId,
+            @Param("startDate") LocalDate startDate,
+            @Param("endDate") LocalDate endDate
+    );
+
     @Query("select i from Intake i where i.userId = :userId and i.date = :date "
             + "and i.deleted = false")
     List<Intake> findByUserIdAndDate(

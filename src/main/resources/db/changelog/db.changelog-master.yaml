@@ -29,3 +29,5 @@ databaseChangeLog:
       file: db/changelog/changes/13-add-recipe-fields-to-meal-template.yaml
   - include:
       file: db/changelog/changes/14-add-intake-sync-support.yaml
+  - include:
+      file: db/changelog/changes/15-add-intake-user-date-index.yaml
