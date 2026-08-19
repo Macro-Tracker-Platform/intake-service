@@ -106,5 +106,8 @@ public class Intake {
         if (updatedAt == null) {
             updatedAt = now;
         }
+        if (status == null) {
+            status = IntakeStatus.CONSUMED;
+        }
     }
 }
