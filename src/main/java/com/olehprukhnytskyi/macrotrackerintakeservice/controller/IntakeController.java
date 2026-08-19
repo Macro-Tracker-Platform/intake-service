@@ -5,6 +5,8 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeSyncPushRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeSyncResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
+import com.olehprukhnytskyi.macrotrackerintakeservice.service.ClientVersionPolicy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.IntakeService;
 import com.olehprukhnytskyi.util.CustomHeaders;
 import io.swagger.v3.oas.annotations.Operation;
@@ -42,6 +44,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class IntakeController {
     private static final String X_DEVICE_ID = "X-Device-Id";
     private final IntakeService intakeService;
+    private final ClientVersionPolicy clientVersionPolicy;
 
     @Operation(
             summary = "Get intake records",
@@ -58,11 +61,18 @@ public class IntakeController {
     @GetMapping
     public ResponseEntity<List<IntakeResponseDto>> findByDate(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(value = ClientVersionPolicy.APP_VERSION_CODE_HEADER, required = false)
+            String appVersionCode,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
             LocalDate date) {
         log.debug("Fetching intake records for userId={} date={}", userId, date);
         List<IntakeResponseDto> intakes = intakeService.findByDate(date, userId);
+        if (!clientVersionPolicy.supportsPlanning(appVersionCode)) {
+            intakes = intakes.stream()
+                    .filter(intake -> intake.getStatus() != IntakeStatus.PLANNED)
+                    .toList();
+        }
         log.debug("Fetched {} intake records for userId={}", intakes.size(), userId);
         return ResponseEntity.ok(intakes);
     }
@@ -90,11 +100,15 @@ public class IntakeController {
     @GetMapping("/sync")
     public ResponseEntity<IntakeSyncResponseDto> pullSync(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(value = ClientVersionPolicy.APP_VERSION_CODE_HEADER, required = false)
+            String appVersionCode,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant since,
             @RequestParam(defaultValue = "100") int limit) {
         Instant effectiveSince = since == null ? Instant.EPOCH : since;
-        return ResponseEntity.ok(intakeService.pullSync(userId, effectiveSince, limit));
+        IntakeSyncResponseDto response = intakeService.pullSync(userId, effectiveSince, limit);
+        hidePlanningFromLegacyClient(response, appVersionCode);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -104,9 +118,13 @@ public class IntakeController {
     @PostMapping("/sync")
     public ResponseEntity<IntakeSyncResponseDto> pushSync(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(value = ClientVersionPolicy.APP_VERSION_CODE_HEADER, required = false)
+            String appVersionCode,
             @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @Valid @RequestBody IntakeSyncPushRequestDto requestDto) {
-        return ResponseEntity.ok(intakeService.pushSync(userId, requestDto, deviceId));
+        IntakeSyncResponseDto response = intakeService.pushSync(userId, requestDto, deviceId);
+        hidePlanningFromLegacyClient(response, appVersionCode);
+        return ResponseEntity.ok(response);
     }
 
     @Operation(
@@ -143,6 +161,14 @@ public class IntakeController {
         return ResponseEntity.ok(updated);
     }
 
+    @PostMapping("/planned/consume")
+    public ResponseEntity<List<IntakeResponseDto>> consumePlanned(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        return ResponseEntity.ok(intakeService.consumePlanned(date, userId, deviceId));
+    }
+
     @Operation(
             summary = "Delete intake record",
             description = "Remove food intake record by ID"
@@ -175,5 +201,16 @@ public class IntakeController {
         intakeService.undoIntakeGroup(mealGroupId, userId, deviceId);
         log.debug("Intake group {} reverted successfully", mealGroupId);
         return ResponseEntity.noContent().build();
+    }
+
+    private void hidePlanningFromLegacyClient(IntakeSyncResponseDto response,
+                                              String appVersionCode) {
+        if (clientVersionPolicy.supportsPlanning(appVersionCode)
+                || response.getData() == null) {
+            return;
+        }
+        response.getData().stream()
+                .filter(item -> item.getStatus() == IntakeStatus.PLANNED)
+                .forEach(item -> item.setDeleted(true));
     }
 }

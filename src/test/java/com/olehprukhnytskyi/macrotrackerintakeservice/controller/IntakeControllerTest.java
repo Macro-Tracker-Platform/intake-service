@@ -21,6 +21,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.NutrimentsDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateApplication;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
@@ -201,6 +202,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .foodId("food-1")
                 .foodName("Oatmeal")
                 .brand("Oat Company")
+                .status(IntakeStatus.CONSUMED)
                 .unitType(UnitType.GRAMS)
                 .availableUnits(List.of(UnitType.GRAMS))
                 .intakePeriod(IntakePeriod.SNACK)
@@ -385,6 +387,7 @@ class IntakeControllerTest extends AbstractIntegrationTest {
                 .foodName("Potato")
                 .date(LocalDate.parse("2025-09-06"))
                 .unitType(intake.getUnitType())
+                .status(IntakeStatus.CONSUMED)
                 .amount(requestDto.getAmount())
                 .availableUnits(List.of(UnitType.GRAMS, UnitType.PIECES))
                 .nutriments(nutrimentsMapper.toDto(intake.getNutriments()))

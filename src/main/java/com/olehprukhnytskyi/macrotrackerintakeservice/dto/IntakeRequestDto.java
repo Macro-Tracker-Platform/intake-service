@@ -1,5 +1,6 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.dto;
 
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -65,6 +66,10 @@ public class IntakeRequestDto {
             }
     )
     private IntakePeriod intakePeriod;
+
+    @Builder.Default
+    @Schema(description = "Whether this entry is planned or already consumed")
+    private IntakeStatus status = IntakeStatus.CONSUMED;
 
     @Schema(
             description = "ID grouping multiple foods consumed in one meal",

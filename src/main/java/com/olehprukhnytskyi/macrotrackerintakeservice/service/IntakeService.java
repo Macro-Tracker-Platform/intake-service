@@ -18,6 +18,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.producer.CacheInvalidationProducer;
 import com.olehprukhnytskyi.macrotrackerintakeservice.producer.UserEventProducer;
@@ -66,6 +67,7 @@ public class IntakeService {
     private final FoodClientService foodClientService;
     private final CacheInvalidationProducer cacheInvalidationProducer;
     private final UserEventProducer userEventProducer;
+    private final PlanningEntitlementService planningEntitlementService;
 
     @CacheEvict(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #intakeRequest.date")
     public IntakeResponseDto save(IntakeRequestDto intakeRequest, Long userId, UUID requestId) {
@@ -76,6 +78,7 @@ public class IntakeService {
     public IntakeResponseDto save(IntakeRequestDto intakeRequest, Long userId, UUID requestId,
                                   String originDeviceId) {
         log.info("Saving intake for userId={}", userId);
+        validatePlanningAccess(userId, intakeRequest.getDate(), intakeRequest.getStatus());
         Intake existing = intakeRepository.findByUserIdAndRequestId(userId, requestId)
                 .orElse(null);
         if (existing != null) {
@@ -182,6 +185,10 @@ public class IntakeService {
         Intake intake = intakeRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException(IntakeErrorCode.INTAKE_NOT_FOUND,
                         "Intake not found"));
+        IntakeStatus requestedStatus = request.getStatus() == null
+                ? intake.getStatus() : request.getStatus();
+        LocalDate requestedDate = request.getDate() == null ? intake.getDate() : request.getDate();
+        validatePlanningAccess(userId, requestedDate, requestedStatus);
         ensureVersionMatches(request.getVersion(), intake);
         LocalDate oldDate = intake.getDate();
         manualEvict(userId, oldDate);
@@ -249,6 +256,28 @@ public class IntakeService {
         applicationRepository.deleteByUserIdAndMealGroupId(userId, mealGroupId);
     }
 
+    @Transactional
+    public List<IntakeResponseDto> consumePlanned(LocalDate date, Long userId,
+                                                  String originDeviceId) {
+        if (date.isAfter(LocalDate.now())) {
+            throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
+                    "Planned meals can only be logged on or after their date");
+        }
+        List<Intake> planned = intakeRepository.findByUserIdAndDateAndStatus(
+                userId, date, IntakeStatus.PLANNED);
+        Instant updatedAt = now();
+        planned.forEach(intake -> {
+            intake.setStatus(IntakeStatus.CONSUMED);
+            intake.setUpdatedAt(updatedAt);
+        });
+        List<Intake> saved = intakeRepository.saveAll(planned);
+        manualEvict(userId, date);
+        if (!saved.isEmpty()) {
+            cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
+        }
+        return saved.stream().map(intakeMapper::toDto).toList();
+    }
+
     private void manualEvictUserIntakes(Long userId, LocalDate date) {
         String key = userId + ":" + date;
         try {
@@ -268,7 +297,27 @@ public class IntakeService {
         intake.setFoodId(dto.getFoodId());
         intake.setUnitType(type);
         intakeMapper.updateIntakeFromFoodDto(intake, food);
+        if (intake.getStatus() == null) {
+            intake.setStatus(IntakeStatus.CONSUMED);
+        }
         return intake;
+    }
+
+    private void validatePlanningAccess(Long userId, LocalDate date, IntakeStatus status) {
+        IntakeStatus effectiveStatus = status == null ? IntakeStatus.CONSUMED : status;
+        if (effectiveStatus != IntakeStatus.PLANNED) {
+            if (date != null && date.isAfter(LocalDate.now())) {
+                throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
+                        "Future intake entries must be PLANNED");
+            }
+            return;
+        }
+        LocalDate today = LocalDate.now();
+        if (date == null || date.isBefore(today) || date.isAfter(today.plusDays(7))) {
+            throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
+                    "Planned meals must be dated within the next 7 days");
+        }
+        planningEntitlementService.requireFuturePlanning(userId);
     }
 
     private void calculateAndSetNutriments(Intake intake, NutrimentsDto sourceNutriments,
@@ -320,6 +369,9 @@ public class IntakeService {
         if (change.getUpdatedAt() == null) {
             throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
                     "Intake sync changes must include updatedAt");
+        }
+        if (!change.isDeleted()) {
+            validatePlanningAccess(userId, change.getDate(), change.getStatus());
         }
         Optional<Intake> existing = findExistingSyncTarget(userId, change);
         if (existing.isPresent()) {

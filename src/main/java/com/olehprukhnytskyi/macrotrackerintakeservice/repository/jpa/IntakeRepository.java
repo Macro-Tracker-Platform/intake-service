@@ -1,6 +1,7 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa;
 
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.macrotrackerintakeservice.projection.DailyIntakeSummaryProjection;
 import java.time.Instant;
 import java.time.LocalDate;
@@ -27,6 +28,8 @@ public interface IntakeRepository extends JpaRepository<Intake, Long> {
             where i.userId = :userId
               and i.date between :startDate and :endDate
               and i.deleted = false
+              and i.status =
+                  com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus.CONSUMED
             group by i.date
             order by i.date
             """)
@@ -58,6 +61,14 @@ public interface IntakeRepository extends JpaRepository<Intake, Long> {
 
     @Query("select i from Intake i where i.userId = :userId and i.deleted = false")
     List<Intake> findByUserId(@Param("userId") Long userId);
+
+    @Query("select i from Intake i where i.userId = :userId and i.date = :date "
+            + "and i.status = :status and i.deleted = false")
+    List<Intake> findByUserIdAndDateAndStatus(
+            @Param("userId") Long userId,
+            @Param("date") LocalDate date,
+            @Param("status") IntakeStatus status
+    );
 
     @Query("select i from Intake i where i.id = :id and i.userId = :userId "
             + "and i.deleted = false")

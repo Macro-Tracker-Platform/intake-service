@@ -1,5 +1,6 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.dto;
 
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import jakarta.validation.constraints.Min;
@@ -31,6 +32,7 @@ public class IntakeSyncItemDto {
     private UnitType unitType;
     private LocalDate date;
     private IntakePeriod intakePeriod;
+    private IntakeStatus status;
     private NutrimentsDto nutriments;
     private String originalFoodId;
     private String moderationStatus;

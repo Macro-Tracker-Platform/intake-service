@@ -8,6 +8,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateApplication;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplateItem;
@@ -119,6 +120,8 @@ public class MealTemplateApplicationService {
             intake.setDate(date);
             intake.setUnitType(item.getUnitType());
             intake.setIntakePeriod(period);
+            intake.setStatus(date.isAfter(LocalDate.now())
+                    ? IntakeStatus.PLANNED : IntakeStatus.CONSUMED);
             intake.setAmount(item.getAmount());
             intake.setNutriments(nutrimentsMapper.clone(item.getNutriments()));
             intake.setOriginalFoodId(item.getOriginalFoodId());
@@ -144,6 +147,8 @@ public class MealTemplateApplicationService {
         intake.setDate(date);
         intake.setUnitType(unitType);
         intake.setIntakePeriod(period);
+        intake.setStatus(date.isAfter(LocalDate.now())
+                ? IntakeStatus.PLANNED : IntakeStatus.CONSUMED);
         intake.setAmount(consumedAmount);
         intake.setNutriments(calculateRecipeNutriments(template, consumedAmount));
         return intakeRepository.saveAndFlush(intake);

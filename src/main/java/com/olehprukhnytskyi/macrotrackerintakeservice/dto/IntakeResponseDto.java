@@ -1,5 +1,6 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.dto;
 
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -62,6 +63,8 @@ public class IntakeResponseDto {
 
     @Schema(description = "Consumption period", example = "BREAKFAST")
     private IntakePeriod intakePeriod;
+
+    private IntakeStatus status;
 
     @Schema(description = "Calculated nutrition values for consumed amount")
     @Builder.Default

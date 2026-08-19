@@ -1,5 +1,6 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.dto;
 
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.util.IntakePeriod;
 import com.olehprukhnytskyi.util.UnitType;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -43,6 +44,8 @@ public class UpdateIntakeRequestDto {
     private IntakePeriod intakePeriod;
 
     private UnitType unitType;
+
+    private IntakeStatus status;
 
     @Schema(description = "Client's last known server version", example = "2")
     private Long version;

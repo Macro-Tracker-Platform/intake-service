@@ -71,6 +71,11 @@ public class Intake {
     @Enumerated(EnumType.STRING)
     private IntakePeriod intakePeriod = IntakePeriod.SNACK;
 
+    @Builder.Default
+    @Column(nullable = false)
+    @Enumerated(EnumType.STRING)
+    private IntakeStatus status = IntakeStatus.CONSUMED;
+
     private String originalFoodId;
 
     private String moderationStatus;

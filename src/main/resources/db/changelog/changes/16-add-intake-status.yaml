@@ -1,0 +1,24 @@
+databaseChangeLog:
+  - changeSet:
+      id: 16-add-intake-status
+      author: codex
+      changes:
+        - addColumn:
+            tableName: intake
+            columns:
+              - column:
+                  name: status
+                  type: varchar(16)
+                  defaultValue: CONSUMED
+                  constraints:
+                    nullable: false
+        - createIndex:
+            tableName: intake
+            indexName: idx_intake_user_date_status
+            columns:
+              - column:
+                  name: user_id
+              - column:
+                  name: date
+              - column:
+                  name: status

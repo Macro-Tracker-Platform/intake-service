@@ -56,6 +56,7 @@ public class MealService {
     private final MealTemplateMapper mealTemplateMapper;
     private final NutrimentsMapper nutrimentsMapper;
     private final FoodClientService foodClientService;
+    private final PlanningEntitlementService planningEntitlementService;
 
     @Transactional(readOnly = true)
     @Cacheable(value = CacheConstants.MEAL_TEMPLATES, key = "#userId")
@@ -114,6 +115,7 @@ public class MealService {
                                                  Long userId, UUID requestId,
                                                  String originDeviceId) {
         log.info("Applying template id={} for userId={} on date={}", templateId, userId, date);
+        validateFutureDate(date, userId);
         List<IntakeResponseDto> existing = findAppliedIntakes(userId, requestId);
         if (existing != null) {
             return existing;
@@ -151,6 +153,7 @@ public class MealService {
                                          String originDeviceId) {
         log.info("Applying recipe template id={} for userId={} on date={}",
                 templateId, userId, date);
+        validateFutureDate(date, userId);
         List<IntakeResponseDto> existing = findAppliedIntakes(userId, requestId);
         if (existing != null && !existing.isEmpty()) {
             return existing.getFirst();
@@ -263,6 +266,17 @@ public class MealService {
                 template.getItems().add(item);
             }
             moveItemToRequestedPosition(template.getItems(), item, position);
+        }
+    }
+
+    private void validateFutureDate(LocalDate date, Long userId) {
+        LocalDate today = LocalDate.now();
+        if (date.isAfter(today.plusDays(7))) {
+            throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
+                    "Meals can be planned up to 7 days ahead");
+        }
+        if (date.isAfter(today)) {
+            planningEntitlementService.requireFuturePlanning(userId);
         }
     }
 
