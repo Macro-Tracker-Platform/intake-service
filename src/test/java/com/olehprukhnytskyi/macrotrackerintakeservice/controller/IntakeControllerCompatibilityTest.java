@@ -10,6 +10,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeSyncResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.ClientVersionPolicy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.IntakeService;
+import com.olehprukhnytskyi.macrotrackerintakeservice.service.PlanningService;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -23,7 +24,8 @@ class IntakeControllerCompatibilityTest {
     @BeforeEach
     void setUp() {
         intakeService = mock(IntakeService.class);
-        controller = new IntakeController(intakeService, new ClientVersionPolicy(45));
+        controller = new IntakeController(intakeService, new ClientVersionPolicy(46),
+                mock(PlanningService.class));
     }
 
     @Test
@@ -34,7 +36,7 @@ class IntakeControllerCompatibilityTest {
                 IntakeResponseDto.builder().id(2L).status(IntakeStatus.PLANNED).build()));
 
         List<IntakeResponseDto> legacy = controller.findByDate(1L, null, date).getBody();
-        List<IntakeResponseDto> current = controller.findByDate(1L, "45", date).getBody();
+        List<IntakeResponseDto> current = controller.findByDate(1L, "46", date).getBody();
 
         assertThat(legacy).extracting(IntakeResponseDto::getId).containsExactly(1L);
         assertThat(current).extracting(IntakeResponseDto::getId).containsExactly(1L, 2L);

@@ -70,6 +70,16 @@ public interface IntakeRepository extends JpaRepository<Intake, Long> {
             @Param("status") IntakeStatus status
     );
 
+    @Query("select i from Intake i where i.userId = :userId "
+            + "and i.date between :from and :to and i.status = :status "
+            + "and i.deleted = false order by i.date, i.id")
+    List<Intake> findByUserIdAndDateBetweenAndStatus(
+            @Param("userId") Long userId,
+            @Param("from") LocalDate from,
+            @Param("to") LocalDate to,
+            @Param("status") IntakeStatus status
+    );
+
     @Query("select i from Intake i where i.id = :id and i.userId = :userId "
             + "and i.deleted = false")
     Optional<Intake> findByIdAndUserId(

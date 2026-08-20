@@ -61,5 +61,6 @@ public interface IntakeMapper {
     @Mapping(target = "deleted", ignore = true)
     @Mapping(target = "unitType", defaultValue = "GRAMS")
     @Mapping(target = "intakePeriod", defaultValue = "SNACK")
+    @BeanMapping(nullValuePropertyMappingStrategy = NullValuePropertyMappingStrategy.IGNORE)
     void updateEntityFromSyncDto(IntakeSyncItemDto dto, @MappingTarget Intake intake);
 }

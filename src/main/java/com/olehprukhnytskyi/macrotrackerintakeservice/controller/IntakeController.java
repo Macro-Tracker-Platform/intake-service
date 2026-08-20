@@ -4,10 +4,12 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeSyncPushRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeSyncResponseDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.dto.ShoppingListItemDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.ClientVersionPolicy;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.IntakeService;
+import com.olehprukhnytskyi.macrotrackerintakeservice.service.PlanningService;
 import com.olehprukhnytskyi.util.CustomHeaders;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -45,6 +47,7 @@ public class IntakeController {
     private static final String X_DEVICE_ID = "X-Device-Id";
     private final IntakeService intakeService;
     private final ClientVersionPolicy clientVersionPolicy;
+    private final PlanningService planningService;
 
     @Operation(
             summary = "Get intake records",
@@ -167,6 +170,16 @@ public class IntakeController {
             @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
         return ResponseEntity.ok(intakeService.consumePlanned(date, userId, deviceId));
+    }
+
+    @GetMapping("/planned/shopping-list")
+    public ResponseEntity<List<ShoppingListItemDto>> shoppingList(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
+            @RequestParam(required = false)
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
+        return ResponseEntity.ok(planningService.shoppingList(userId, from, to));
     }
 
     @Operation(

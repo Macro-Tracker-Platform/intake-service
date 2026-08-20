@@ -313,9 +313,9 @@ public class IntakeService {
             return;
         }
         LocalDate today = LocalDate.now();
-        if (date == null || date.isBefore(today) || date.isAfter(today.plusDays(7))) {
+        if (date == null || date.isBefore(today) || date.isAfter(today.plusDays(14))) {
             throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
-                    "Planned meals must be dated within the next 7 days");
+                    "Planned meals must be dated within the next 14 days");
         }
         planningEntitlementService.requireFuturePlanning(userId);
     }

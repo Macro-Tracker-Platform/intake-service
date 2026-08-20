@@ -10,7 +10,7 @@ public class ClientVersionPolicy {
     private final int planningMinVersionCode;
 
     public ClientVersionPolicy(
-            @Value("${app.compatibility.planning-min-version-code:45}")
+            @Value("${app.compatibility.planning-min-version-code:46}")
             int planningMinVersionCode) {
         this.planningMinVersionCode = planningMinVersionCode;
     }
