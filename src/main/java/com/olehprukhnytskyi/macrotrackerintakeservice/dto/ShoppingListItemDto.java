@@ -15,4 +15,6 @@ public class ShoppingListItemDto {
     private String foodName;
     private int amount;
     private UnitType unitType;
+    private Long recipeId;
+    private String recipeName;
 }

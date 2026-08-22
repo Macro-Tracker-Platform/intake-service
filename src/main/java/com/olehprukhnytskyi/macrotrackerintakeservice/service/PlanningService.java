@@ -11,6 +11,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepos
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
 import com.olehprukhnytskyi.util.UnitType;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,19 +37,30 @@ public class PlanningService {
             throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
                     "Shopping list range must be within 14 days");
         }
-        Map<String, ShoppingListItemDto> grouped = new LinkedHashMap<>();
+        Map<String, ShoppingListItemDto> generalItems = new LinkedHashMap<>();
+        Map<Long, RecipeGroup> recipeGroups = new LinkedHashMap<>();
         for (Intake intake : intakeRepository.findByUserIdAndDateBetweenAndStatus(
                 userId, safeFrom, safeTo, IntakeStatus.PLANNED)) {
-            if (!expandRecipe(userId, intake, grouped)) {
-                add(grouped, intake.getFoodId(), intake.getFoodName(), intake.getAmount(),
-                        intake.getUnitType());
+            if (!expandRecipe(userId, intake, recipeGroups)) {
+                addGeneral(generalItems, intake.getFoodId(), intake.getFoodName(),
+                        intake.getAmount(), intake.getUnitType());
             }
         }
-        return grouped.values().stream().toList();
+        List<ShoppingListItemDto> result = new ArrayList<>(generalItems.values());
+        recipeGroups.values().forEach(group -> group.items.values().forEach(item ->
+                result.add(ShoppingListItemDto.builder()
+                        .foodId(item.foodId)
+                        .foodName(item.foodName)
+                        .amount(Math.max(1, (int) Math.ceil(item.amount)))
+                        .unitType(item.unitType)
+                        .recipeId(group.recipeId)
+                        .recipeName(group.recipeName)
+                        .build())));
+        return result;
     }
 
     private boolean expandRecipe(Long userId, Intake intake,
-                                 Map<String, ShoppingListItemDto> grouped) {
+                                 Map<Long, RecipeGroup> recipeGroups) {
         if (intake.getFoodId() == null || !intake.getFoodId().startsWith(RECIPE_PREFIX)) {
             return false;
         }
@@ -61,11 +73,13 @@ public class PlanningService {
                     || template.getTotalYieldAmount() <= 0) {
                 return false;
             }
+            String recipeName = template.getName() == null || template.getName().isBlank()
+                    ? intake.getFoodName() : template.getName();
+            RecipeGroup group = recipeGroups.computeIfAbsent(templateId,
+                    ignored -> new RecipeGroup(templateId, recipeName));
             double ratio = intake.getAmount() / (double) template.getTotalYieldAmount();
             for (MealTemplateItem item : template.getItems()) {
-                add(grouped, item.getFoodId(), item.getFoodName(),
-                        Math.max(1, (int) Math.ceil(item.getAmount() * ratio)),
-                        item.getUnitType());
+                group.add(item, item.getAmount() * ratio);
             }
             return true;
         } catch (NumberFormatException ignored) {
@@ -73,15 +87,55 @@ public class PlanningService {
         }
     }
 
-    private void add(Map<String, ShoppingListItemDto> grouped, String foodId, String foodName,
-                     int amount, UnitType unitType) {
-        String key = foodId + "|" + unitType;
+    private void addGeneral(Map<String, ShoppingListItemDto> grouped, String foodId,
+                            String foodName, int amount, UnitType unitType) {
+        String identity = foodId == null || foodId.isBlank() ? foodName : foodId;
+        String key = identity + "|" + unitType;
         ShoppingListItemDto existing = grouped.get(key);
         if (existing == null) {
             grouped.put(key, ShoppingListItemDto.builder().foodId(foodId)
                     .foodName(foodName).amount(amount).unitType(unitType).build());
         } else {
             existing.setAmount(existing.getAmount() + amount);
+        }
+    }
+
+    private static final class RecipeGroup {
+        private final Long recipeId;
+        private final String recipeName;
+        private final Map<String, AggregatedIngredient> items = new LinkedHashMap<>();
+
+        private RecipeGroup(Long recipeId, String recipeName) {
+            this.recipeId = recipeId;
+            this.recipeName = recipeName;
+        }
+
+        private void add(MealTemplateItem item, double amount) {
+            String identity = item.getFoodId() == null || item.getFoodId().isBlank()
+                    ? item.getFoodName() : item.getFoodId();
+            String key = identity + "|" + item.getUnitType();
+            AggregatedIngredient existing = items.get(key);
+            if (existing == null) {
+                items.put(key, new AggregatedIngredient(item.getFoodId(), item.getFoodName(),
+                        amount, item.getUnitType()));
+            } else {
+                existing.amount += amount;
+            }
+        }
+    }
+
+    private static final class AggregatedIngredient {
+        private final String foodId;
+        private final String foodName;
+        private double amount;
+        private final UnitType unitType;
+
+        private AggregatedIngredient(String foodId, String foodName, double amount,
+                                     UnitType unitType) {
+            this.foodId = foodId;
+            this.foodName = foodName;
+            this.amount = amount;
+            this.unitType = unitType;
         }
     }
 }
