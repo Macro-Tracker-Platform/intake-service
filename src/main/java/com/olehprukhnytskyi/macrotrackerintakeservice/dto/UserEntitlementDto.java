@@ -9,6 +9,7 @@ public class UserEntitlementDto {
     private Features features;
 
     @Data
+    @JsonIgnoreProperties(ignoreUnknown = true)
     public static class Features {
         private boolean futurePlanning;
     }
