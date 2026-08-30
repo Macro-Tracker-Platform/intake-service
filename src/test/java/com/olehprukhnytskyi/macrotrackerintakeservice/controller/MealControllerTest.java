@@ -25,6 +25,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepos
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateApplicationRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.MealTemplateRepository;
 import com.olehprukhnytskyi.macrotrackerintakeservice.service.FoodClientService;
+import com.olehprukhnytskyi.macrotrackerintakeservice.service.PlanningEntitlementService;
 import com.olehprukhnytskyi.util.CustomHeaders;
 import com.olehprukhnytskyi.util.UnitType;
 import java.math.BigDecimal;
@@ -58,6 +59,9 @@ class MealControllerTest extends AbstractIntegrationTest {
 
     @MockitoBean
     private FoodClientService foodClientService;
+
+    @MockitoBean
+    private PlanningEntitlementService planningEntitlementService;
 
     @BeforeAll
     static void beforeAll(
@@ -155,6 +159,31 @@ class MealControllerTest extends AbstractIntegrationTest {
         assertThat(savedTemplate.isRecipe()).isTrue();
         assertThat(savedTemplate.getTotalYieldAmount()).isEqualTo(12);
         assertThat(savedTemplate.getYieldUnitType()).isEqualTo(UnitType.PIECES);
+    }
+
+    @Test
+    @DisplayName("Free account should receive 429 after three templates and recipes")
+    void createTemplate_whenFreeLimitReached_shouldReturn429() throws Exception {
+        Long userId = 109L;
+        createAndSaveTemplateInDb(userId, "Breakfast");
+        createAndSaveTemplateInDb(userId, "Lunch");
+        createAndSaveRecipeTemplateInDb(userId);
+        MealTemplateRequestDto request = MealTemplateRequestDto.builder()
+                .name("Fourth saved meal")
+                .items(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
+                        .foodId("food-fourth")
+                        .amount(100)
+                        .unitType(UnitType.GRAMS)
+                        .build()))
+                .build();
+
+        mockMvc.perform(post("/api/meal-templates")
+                        .header(CustomHeaders.X_USER_ID, userId)
+                        .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("MEAL_TEMPLATE_LIMIT_REACHED"));
     }
 
     @Test

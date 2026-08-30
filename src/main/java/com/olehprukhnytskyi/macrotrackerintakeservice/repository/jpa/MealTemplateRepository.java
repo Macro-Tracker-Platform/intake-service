@@ -14,4 +14,6 @@ public interface MealTemplateRepository extends JpaRepository<MealTemplate, Long
     Optional<MealTemplate> findByUserIdAndRequestId(Long userId, UUID requestId);
 
     List<MealTemplate> findAllByUserId(Long userId);
+
+    long countByUserId(Long userId);
 }

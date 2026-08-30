@@ -9,12 +9,14 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.olehprukhnytskyi.exception.BadRequestException;
 import com.olehprukhnytskyi.exception.NotFoundException;
 import com.olehprukhnytskyi.exception.error.IntakeErrorCode;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.FoodDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.NutrimentsDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.exception.error.MealTemplateErrorCode;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.MealTemplateMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
@@ -62,6 +64,8 @@ class MealServiceTest {
     private FoodClientService foodClientService;
     @Mock
     private NutrientStrategyFactory nutrientStrategyFactory;
+    @Mock
+    private PlanningEntitlementService planningEntitlementService;
 
     @InjectMocks
     private MealService mealService;
@@ -69,7 +73,7 @@ class MealServiceTest {
     @Test
     @DisplayName("When request id already exists, should return persisted template")
     void createTemplate_whenRequestIdExists_shouldReturnPersistedTemplate() {
-        UUID requestId = UUID.randomUUID();
+        final UUID requestId = UUID.randomUUID();
         MealTemplateRequestDto request = new MealTemplateRequestDto();
         MealTemplate existing = MealTemplate.builder().id(10L).userId(1L)
                 .requestId(requestId).build();
@@ -134,6 +138,26 @@ class MealServiceTest {
         assertThat(captured.getItems().get(0).getFoodName()).isEqualTo("Oats");
         assertThat(captured.getItems().get(0).getBrand()).isEqualTo("Oat Company");
         assertThat(captured.getItems().get(0).getAmount()).isEqualTo(100);
+    }
+
+    @Test
+    @DisplayName("Free account cannot create more than three templates or recipes")
+    void createTemplate_whenFreeLimitReached_shouldRejectCreation() {
+        Long userId = 1L;
+        final UUID requestId = UUID.randomUUID();
+        MealTemplateRequestDto request = new MealTemplateRequestDto();
+        request.setName("Fourth template");
+        request.setItems(List.of());
+        when(planningEntitlementService.hasPremiumAccess(userId)).thenReturn(false);
+        when(mealTemplateRepository.countByUserId(userId)).thenReturn(3L);
+
+        BadRequestException exception = assertThrows(BadRequestException.class,
+                () -> mealService.createTemplate(request, userId, requestId));
+
+        assertThat(exception.getErrorCode())
+                .isEqualTo(MealTemplateErrorCode.MEAL_TEMPLATE_LIMIT_REACHED);
+        verify(foodClientService, never()).getFoodsByIds(anyList());
+        verify(mealTemplateRepository, never()).saveAndFlush(any());
     }
 
     @Test

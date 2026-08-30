@@ -20,4 +20,9 @@ public class PlanningEntitlementService {
                     "Future meal planning requires MacroTracker Pro");
         }
     }
+
+    public boolean hasPremiumAccess(Long userId) {
+        UserEntitlementDto entitlement = client.getEntitlement(userId);
+        return entitlement != null && entitlement.hasPremiumAccess();
+    }
 }

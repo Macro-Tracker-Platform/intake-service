@@ -10,6 +10,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.IntakeResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateRequestDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.MealTemplateResponseDto;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateMealTemplateDto;
+import com.olehprukhnytskyi.macrotrackerintakeservice.exception.error.MealTemplateErrorCode;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.MealTemplateMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
@@ -39,6 +40,7 @@ import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
 @Slf4j
@@ -46,6 +48,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class MealService {
     private static final String INTAKE_DOMAIN = "INTAKE";
+    private static final long FREE_TEMPLATE_LIMIT = 3;
     private final NutrientStrategyFactory strategyFactory;
     private final IntakeRepository intakeRepository;
     private final MealTemplateRepository mealTemplateRepository;
@@ -67,6 +70,7 @@ public class MealService {
     }
 
     @CacheEvict(value = CacheConstants.MEAL_TEMPLATES, key = "#userId")
+    @Transactional(isolation = Isolation.SERIALIZABLE)
     public Long createTemplate(MealTemplateRequestDto request, Long userId, UUID requestId) {
         log.info("Creating meal template '{}' for userId={}", request.getName(), userId);
         MealTemplate existing = mealTemplateRepository.findByUserIdAndRequestId(userId, requestId)
@@ -74,6 +78,7 @@ public class MealService {
         if (existing != null) {
             return existing.getId();
         }
+        enforceTemplateLimit(userId);
         RecipeYield recipeYield = resolveRecipeYield(request.isRecipe(),
                 request.getTotalYieldAmount(), request.getYieldUnitType());
         List<String> foodIds = request.getItems().stream()
@@ -266,6 +271,17 @@ public class MealService {
                 template.getItems().add(item);
             }
             moveItemToRequestedPosition(template.getItems(), item, position);
+        }
+    }
+
+    private void enforceTemplateLimit(Long userId) {
+        if (planningEntitlementService.hasPremiumAccess(userId)) {
+            return;
+        }
+        if (mealTemplateRepository.countByUserId(userId) >= FREE_TEMPLATE_LIMIT) {
+            throw new BadRequestException(
+                    MealTemplateErrorCode.MEAL_TEMPLATE_LIMIT_REACHED,
+                    "Free accounts can save up to 3 meal templates and recipes");
         }
     }
 
