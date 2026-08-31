@@ -68,6 +68,7 @@ public class IntakeService {
     private final CacheInvalidationProducer cacheInvalidationProducer;
     private final UserEventProducer userEventProducer;
     private final PlanningEntitlementService planningEntitlementService;
+    private final FoodPhotoHistoryService foodPhotoHistoryService;
 
     @CacheEvict(value = CacheConstants.USER_INTAKES, key = "#userId + ':' + #intakeRequest.date")
     public IntakeResponseDto save(IntakeRequestDto intakeRequest, Long userId, UUID requestId) {
@@ -94,6 +95,7 @@ public class IntakeService {
         calculateAndSetNutriments(intake, food.getNutriments(), intakeRequest.getAmount());
         try {
             Intake saved = intakeRepository.saveAndFlush(intake);
+            foodPhotoHistoryService.evictAfterCommit(userId);
             log.debug("Intake saved successfully userId={} intakeId={}", userId, saved.getId());
             cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
             return intakeMapper.toDto(saved);
@@ -164,6 +166,7 @@ public class IntakeService {
             applySyncChange(userId, change).ifPresent(applied::add);
         }
         if (!applied.isEmpty()) {
+            foodPhotoHistoryService.evictAfterCommit(userId);
             cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
         }
         return IntakeSyncResponseDto.builder()
@@ -200,7 +203,8 @@ public class IntakeService {
         if (!Objects.equals(oldDate, intake.getDate())) {
             manualEvict(userId, intake.getDate());
         }
-        Intake saved = intakeRepository.save(intake);
+        final Intake saved = intakeRepository.save(intake);
+        foodPhotoHistoryService.evictAfterCommit(userId);
         log.debug("Intake updated successfully id={} userId={}", id, userId);
         cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
         return intakeMapper.toDto(saved);
@@ -219,6 +223,7 @@ public class IntakeService {
             intake.setDeleted(true);
             intake.setUpdatedAt(now());
             intakeRepository.saveAndFlush(intake);
+            foodPhotoHistoryService.evictAfterCommit(userId);
             cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
         });
     }
@@ -227,6 +232,9 @@ public class IntakeService {
     public void deleteUserIntakesRecursively(Long userId) {
         log.info("Processing batch deletion for user: {}", userId);
         int deletedCount = intakeRepository.deleteBatchByUserId(userId, DELETE_BATCH_SIZE);
+        if (deletedCount > 0) {
+            foodPhotoHistoryService.evictAfterCommit(userId);
+        }
         log.info("Deleted {} intake records for user {}", deletedCount, userId);
         if (deletedCount >= DELETE_BATCH_SIZE) {
             log.info("User {} still has data. Republishing event to continue deletion.",
@@ -251,6 +259,7 @@ public class IntakeService {
         int deleted = intakeRepository.softDeleteByMealGroupIdAndUserId(
                 mealGroupId.toString(), userId, now());
         if (deleted > 0) {
+            foodPhotoHistoryService.evictAfterCommit(userId);
             cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
         }
         applicationRepository.deleteByUserIdAndMealGroupId(userId, mealGroupId);
@@ -273,6 +282,7 @@ public class IntakeService {
         List<Intake> saved = intakeRepository.saveAll(planned);
         manualEvict(userId, date);
         if (!saved.isEmpty()) {
+            foodPhotoHistoryService.evictAfterCommit(userId);
             cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
         }
         return saved.stream().map(intakeMapper::toDto).toList();
@@ -463,6 +473,12 @@ public class IntakeService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Intake version is stale; pull latest data and retry");
         }
+    }
+
+    @Transactional(readOnly = true)
+    public List<String> findFrequentRecentFoodIds(Long userId, int limit) {
+        List<String> foodIds = foodPhotoHistoryService.getTopFoodIds(userId);
+        return foodIds.subList(0, Math.min(limit, foodIds.size()));
     }
 
     private void manualEvict(Long userId, LocalDate date) {

@@ -63,6 +63,8 @@ class IntakeServiceTest {
     private NutrimentsMapper nutrimentsMapper;
     @Mock
     private CacheInvalidationProducer cacheInvalidationProducer;
+    @Mock
+    private FoodPhotoHistoryService foodPhotoHistoryService;
 
     @InjectMocks
     private IntakeService intakeService;

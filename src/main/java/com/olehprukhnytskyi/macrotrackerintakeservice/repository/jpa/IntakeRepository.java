@@ -62,6 +62,23 @@ public interface IntakeRepository extends JpaRepository<Intake, Long> {
     @Query("select i from Intake i where i.userId = :userId and i.deleted = false")
     List<Intake> findByUserId(@Param("userId") Long userId);
 
+    @Query("""
+            select i.foodId
+            from Intake i
+            where i.userId = :userId
+              and i.date >= :since
+              and i.deleted = false
+              and i.status =
+                  com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus.CONSUMED
+            group by i.foodId
+            order by count(i.id) desc, max(i.date) desc
+            """)
+    List<String> findFrequentRecentFoodIds(
+            @Param("userId") Long userId,
+            @Param("since") LocalDate since,
+            Pageable pageable
+    );
+
     @Query("select i from Intake i where i.userId = :userId and i.date = :date "
             + "and i.status = :status and i.deleted = false")
     List<Intake> findByUserIdAndDateAndStatus(

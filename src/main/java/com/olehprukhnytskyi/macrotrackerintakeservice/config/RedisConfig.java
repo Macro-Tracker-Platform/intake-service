@@ -78,6 +78,8 @@ public class RedisConfig {
 
         Map<String, RedisCacheConfiguration> configs = new HashMap<>();
         configs.put(CacheConstants.USER_INTAKES, defaultConfig.entryTtl(Duration.ofHours(6)));
+        configs.put(CacheConstants.FOOD_PHOTO_HISTORY,
+                defaultConfig.entryTtl(Duration.ofMinutes(10)));
 
         return RedisCacheManager.builder(connectionFactory)
                 .cacheDefaults(defaultConfig)

@@ -1,0 +1,15 @@
+databaseChangeLog:
+  - changeSet:
+      id: 17-add-food-photo-history-index
+      author: codex
+      dbms: postgresql
+      runInTransaction: false
+      changes:
+        - sql:
+            sql: >-
+              CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_intake_food_photo_history
+              ON intake (user_id, food_id, date DESC)
+              WHERE status = 'CONSUMED' AND is_deleted = false
+      rollback:
+        - sql:
+            sql: DROP INDEX CONCURRENTLY IF EXISTS idx_intake_food_photo_history

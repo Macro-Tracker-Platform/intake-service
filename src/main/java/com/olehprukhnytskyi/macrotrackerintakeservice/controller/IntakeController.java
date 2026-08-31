@@ -15,6 +15,8 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -93,6 +95,17 @@ public class IntakeController {
         log.debug("Fetching intake records for userId={} range={}..{}",
                 userId, startDate, endDate);
         return ResponseEntity.ok(intakeService.findByDateRange(startDate, endDate, userId));
+    }
+
+    @Operation(
+            summary = "Get frequent and recent logged food IDs",
+            description = "Internal read endpoint used to prioritize food photo matches"
+    )
+    @GetMapping("/history/food-ids")
+    public ResponseEntity<List<String>> findFrequentRecentFoodIds(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int limit) {
+        return ResponseEntity.ok(intakeService.findFrequentRecentFoodIds(userId, limit));
     }
 
     @Operation(

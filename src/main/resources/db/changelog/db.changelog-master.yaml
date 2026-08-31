@@ -33,3 +33,5 @@ databaseChangeLog:
       file: db/changelog/changes/15-add-intake-user-date-index.yaml
   - include:
       file: db/changelog/changes/16-add-intake-status.yaml
+  - include:
+      file: db/changelog/changes/17-add-food-photo-history-index.yaml
