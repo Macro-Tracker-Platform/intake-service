@@ -68,6 +68,7 @@ public interface IntakeRepository extends JpaRepository<Intake, Long> {
             where i.userId = :userId
               and i.date >= :since
               and i.deleted = false
+              and i.foodId not like 'QUICK_LOG:%'
               and i.status =
                   com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus.CONSUMED
             group by i.foodId

@@ -42,6 +42,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -289,6 +290,59 @@ class IntakeServiceTest {
         assertEquals(200, existing.getAmount());
         assertTrue(existing.getUpdatedAt().isAfter(serverUpdatedAt));
         verify(intakeRepository).saveAndFlush(existing);
+    }
+
+    @Test
+    @DisplayName("Quick-log sync should persist only an intake without food-service lookup")
+    void pushSync_whenQuickLogIsNew_shouldNotCallFoodService() {
+        UUID requestId = UUID.randomUUID();
+        IntakeSyncItemDto quickLog = IntakeSyncItemDto.builder()
+                .requestId(requestId)
+                .foodId("QUICK_LOG:" + requestId)
+                .foodName("Estimated rice bowl")
+                .amount(320)
+                .unitType(UnitType.GRAMS)
+                .date(LocalDate.of(2026, 6, 19))
+                .nutriments(NutrimentsDto.builder()
+                        .calories(new BigDecimal("480"))
+                        .protein(new BigDecimal("18"))
+                        .fat(new BigDecimal("12"))
+                        .carbohydrates(new BigDecimal("72"))
+                        .build())
+                .updatedAt(Instant.parse("2026-06-19T08:00:00Z"))
+                .build();
+        when(intakeRepository.findAnyByUserIdAndRequestId(userId, requestId))
+                .thenReturn(Optional.empty());
+        doAnswer(invocation -> {
+            IntakeSyncItemDto source = invocation.getArgument(0);
+            Intake target = invocation.getArgument(1);
+            target.setRequestId(source.getRequestId());
+            target.setFoodId(source.getFoodId());
+            target.setFoodName(source.getFoodName());
+            target.setAmount(source.getAmount());
+            target.setUnitType(source.getUnitType());
+            target.setDate(source.getDate());
+            target.setNutriments(new Nutriments());
+            return null;
+        }).when(intakeMapper)
+                .updateEntityFromSyncDto(any(IntakeSyncItemDto.class), any(Intake.class));
+        when(intakeRepository.saveAndFlush(any(Intake.class))).thenAnswer(invocation -> {
+            Intake saved = invocation.getArgument(0);
+            saved.setId(44L);
+            return saved;
+        });
+        when(intakeMapper.toSyncDto(any(Intake.class))).thenReturn(
+                IntakeSyncItemDto.builder().id(44L).requestId(requestId).build());
+
+        IntakeSyncResponseDto response = intakeService.pushSync(userId,
+                IntakeSyncPushRequestDto.builder().changes(List.of(quickLog)).build());
+
+        assertEquals(44L, response.getData().getFirst().getId());
+        ArgumentCaptor<Intake> intakeCaptor = ArgumentCaptor.forClass(Intake.class);
+        verify(intakeRepository).saveAndFlush(intakeCaptor.capture());
+        assertEquals("QUICK_LOG:" + requestId, intakeCaptor.getValue().getFoodId());
+        assertEquals("Estimated rice bowl", intakeCaptor.getValue().getFoodName());
+        verify(foodClientService, never()).getFoodById(any());
     }
 
     @Test
