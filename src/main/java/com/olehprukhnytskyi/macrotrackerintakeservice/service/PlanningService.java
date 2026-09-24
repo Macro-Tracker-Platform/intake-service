@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 @RequiredArgsConstructor
 public class PlanningService {
     private static final String RECIPE_PREFIX = "RECIPE_";
+    private static final String QUICK_LOG_PREFIX = "QUICK_LOG:";
     private final IntakeRepository intakeRepository;
     private final MealTemplateRepository templateRepository;
     private final PlanningEntitlementService entitlementService;
@@ -41,6 +42,9 @@ public class PlanningService {
         Map<Long, RecipeGroup> recipeGroups = new LinkedHashMap<>();
         for (Intake intake : intakeRepository.findByUserIdAndDateBetweenAndStatus(
                 userId, safeFrom, safeTo, IntakeStatus.PLANNED)) {
+            if (isQuickLog(intake)) {
+                continue;
+            }
             if (!expandRecipe(userId, intake, recipeGroups)) {
                 addGeneral(generalItems, intake.getFoodId(), intake.getFoodName(),
                         intake.getAmount(), intake.getUnitType());
@@ -57,6 +61,10 @@ public class PlanningService {
                         .recipeName(group.recipeName)
                         .build())));
         return result;
+    }
+
+    private boolean isQuickLog(Intake intake) {
+        return intake.getFoodId() != null && intake.getFoodId().startsWith(QUICK_LOG_PREFIX);
     }
 
     private boolean expandRecipe(Long userId, Intake intake,

@@ -62,7 +62,7 @@ public class Intake {
     private Integer amount;
 
     @Builder.Default
-    @Column(nullable = false)
+    @Column
     @Enumerated(EnumType.STRING)
     private UnitType unitType = UnitType.GRAMS;
 

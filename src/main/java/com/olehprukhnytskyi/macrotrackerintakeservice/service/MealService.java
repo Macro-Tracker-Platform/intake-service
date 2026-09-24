@@ -39,6 +39,9 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -66,6 +69,23 @@ public class MealService {
     public List<MealTemplateResponseDto> getTemplates(Long userId) {
         log.info("Fetching meal templates from DB for userId={}", userId);
         List<MealTemplate> templates = mealTemplateRepository.findAllByUserId(userId);
+        return mealTemplateMapper.toDtoList(templates);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MealTemplateResponseDto> getTemplates(Long userId, int offset, int limit) {
+        if (offset % limit != 0) {
+            throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
+                    "Offset must be a multiple of limit");
+        }
+        log.info("Fetching meal templates from DB for userId={} offset={} limit={}",
+                userId, offset, limit);
+        Pageable pageable = PageRequest.of(
+                offset / limit,
+                limit,
+                Sort.by(Sort.Order.desc("id")));
+        List<MealTemplate> templates = mealTemplateRepository
+                .findAllByUserId(userId, pageable).getContent();
         return mealTemplateMapper.toDtoList(templates);
     }
 

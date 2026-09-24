@@ -128,6 +128,29 @@ class MealControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
+    @DisplayName("When templates are paged, should return requested slice")
+    void getAllTemplates_whenPaged_shouldReturnRequestedSlice() throws Exception {
+        // Given
+        Long userId = 131L;
+        createAndSaveTemplateInDb(userId, "First");
+        createAndSaveTemplateInDb(userId, "Second");
+        createAndSaveTemplateInDb(userId, "Third");
+        createAndSaveTemplateInDb(userId, "Fourth");
+
+        // When & Then
+        mockMvc.perform(
+                        get("/api/meal-templates")
+                                .header(CustomHeaders.X_USER_ID, userId)
+                                .param("offset", "2")
+                                .param("limit", "2")
+                )
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(2))
+                .andExpect(jsonPath("$[0].name").value("Second"))
+                .andExpect(jsonPath("$[1].name").value("First"));
+    }
+
+    @Test
     @DisplayName("When recipe request is valid, should create recipe template")
     void createTemplate_whenRecipeRequest_shouldSaveRecipeFields() throws Exception {
         MealTemplateRequestDto request = new MealTemplateRequestDto();

@@ -39,6 +39,8 @@ class PlanningServiceTest {
         LocalDate to = from.plusDays(14);
         Intake oats = Intake.builder().foodId("oats").foodName("Oats").amount(100)
                 .unitType(UnitType.GRAMS).build();
+        Intake quickLog = Intake.builder().foodId("QUICK_LOG:estimated-lunch")
+                .foodName("Estimated lunch").amount(100).unitType(null).build();
         Intake recipe = Intake.builder().foodId("RECIPE_12").foodName("Porridge")
                 .amount(1).unitType(UnitType.PIECES).build();
         MealTemplate template = MealTemplate.builder().id(12L).userId(userId).recipe(true)
@@ -48,7 +50,8 @@ class PlanningServiceTest {
                         MealTemplateItem.builder().foodId("milk").foodName("Milk")
                                 .amount(300).unitType(UnitType.GRAMS).build())).build();
         when(intakeRepository.findByUserIdAndDateBetweenAndStatus(
-                userId, from, to, IntakeStatus.PLANNED)).thenReturn(List.of(oats, recipe));
+                userId, from, to, IntakeStatus.PLANNED))
+                .thenReturn(List.of(oats, quickLog, recipe));
         when(templateRepository.findByIdAndUserId(12L, userId))
                 .thenReturn(Optional.of(template));
 

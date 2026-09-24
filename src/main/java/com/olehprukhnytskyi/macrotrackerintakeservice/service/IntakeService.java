@@ -57,6 +57,7 @@ import org.springframework.web.server.ResponseStatusException;
 @RequiredArgsConstructor
 public class IntakeService {
     private static final String INTAKE_DOMAIN = "INTAKE";
+    private static final String QUICK_LOG_FOOD_ID_PREFIX = "QUICK_LOG:";
     private static final int DELETE_BATCH_SIZE = 1000;
     private final NutrientStrategyFactory strategyFactory;
     private final IntakeRepository intakeRepository;
@@ -188,6 +189,10 @@ public class IntakeService {
         Intake intake = intakeRepository.findByIdAndUserId(id, userId)
                 .orElseThrow(() -> new NotFoundException(IntakeErrorCode.INTAKE_NOT_FOUND,
                         "Intake not found"));
+        if (isQuickLog(intake)) {
+            throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
+                    "Quick log values cannot be edited");
+        }
         IntakeStatus requestedStatus = request.getStatus() == null
                 ? intake.getStatus() : request.getStatus();
         LocalDate requestedDate = request.getDate() == null ? intake.getDate() : request.getDate();
@@ -365,7 +370,7 @@ public class IntakeService {
         Integer newAmount = intake.getAmount();
         UnitType newUnit = intake.getUnitType();
         boolean amountChanged = !Objects.equals(oldAmount, newAmount);
-        boolean unitChanged = !newUnit.equals(oldUnit);
+        boolean unitChanged = !Objects.equals(newUnit, oldUnit);
         if (amountChanged || unitChanged) {
             if (unitChanged) {
                 NutrientUtils.validateUnitType(newUnit, intake.getNutriments());
@@ -379,9 +384,6 @@ public class IntakeService {
         if (change.getUpdatedAt() == null) {
             throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
                     "Intake sync changes must include updatedAt");
-        }
-        if (!change.isDeleted()) {
-            validatePlanningAccess(userId, change.getDate(), change.getStatus());
         }
         Optional<Intake> existing = findExistingSyncTarget(userId, change);
         if (existing.isPresent()) {
@@ -397,6 +399,10 @@ public class IntakeService {
                 manualEvict(userId, oldDate);
                 return Optional.of(intakeMapper.toSyncDto(saved));
             }
+            if (isQuickLog(intake)) {
+                return syncQuickLogStatus(userId, intake, change);
+            }
+            validatePlanningAccess(userId, change.getDate(), change.getStatus());
             applySyncState(intake, change);
             intake.setUpdatedAt(now());
             Intake saved = intakeRepository.saveAndFlush(intake);
@@ -413,12 +419,14 @@ public class IntakeService {
             intake.setUserId(userId);
             validateActiveSyncChange(change);
             intakeMapper.updateEntityFromSyncDto(change, intake);
+            clearQuickLogUnitType(intake);
             intake.setDeleted(true);
             intake.setUpdatedAt(now());
             Intake saved = intakeRepository.saveAndFlush(intake);
             manualEvict(userId, saved.getDate());
             return Optional.of(intakeMapper.toSyncDto(saved));
         }
+        validatePlanningAccess(userId, change.getDate(), change.getStatus());
         validateActiveSyncChange(change);
         Intake intake = new Intake();
         intake.setUserId(userId);
@@ -457,6 +465,7 @@ public class IntakeService {
         }
         validateActiveSyncChange(change);
         intakeMapper.updateEntityFromSyncDto(change, intake);
+        clearQuickLogUnitType(intake);
         intake.setDeleted(false);
     }
 
@@ -473,6 +482,33 @@ public class IntakeService {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "Intake version is stale; pull latest data and retry");
         }
+    }
+
+    private boolean isQuickLog(Intake intake) {
+        return isQuickLogFoodId(intake.getFoodId());
+    }
+
+    private boolean isQuickLogFoodId(String foodId) {
+        return foodId != null && foodId.startsWith(QUICK_LOG_FOOD_ID_PREFIX);
+    }
+
+    private void clearQuickLogUnitType(Intake intake) {
+        if (isQuickLog(intake)) {
+            intake.setUnitType(null);
+        }
+    }
+
+    private Optional<IntakeSyncItemDto> syncQuickLogStatus(
+            Long userId, Intake intake, IntakeSyncItemDto change) {
+        if (intake.getStatus() != IntakeStatus.PLANNED
+                || change.getStatus() != IntakeStatus.CONSUMED) {
+            return Optional.of(intakeMapper.toSyncDto(intake));
+        }
+        intake.setStatus(IntakeStatus.CONSUMED);
+        intake.setUpdatedAt(now());
+        Intake saved = intakeRepository.saveAndFlush(intake);
+        manualEvict(userId, saved.getDate());
+        return Optional.of(intakeMapper.toSyncDto(saved));
     }
 
     @Transactional(readOnly = true)

@@ -1,6 +1,7 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -11,6 +12,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.olehprukhnytskyi.exception.BadRequestException;
 import com.olehprukhnytskyi.exception.ExternalServiceException;
 import com.olehprukhnytskyi.exception.NotFoundException;
 import com.olehprukhnytskyi.macrotrackerintakeservice.dto.FoodDto;
@@ -24,6 +26,7 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.dto.UpdateIntakeRequestDto
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.IntakeMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.mapper.NutrimentsMapper;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Intake;
+import com.olehprukhnytskyi.macrotrackerintakeservice.model.IntakeStatus;
 import com.olehprukhnytskyi.macrotrackerintakeservice.model.Nutriments;
 import com.olehprukhnytskyi.macrotrackerintakeservice.producer.CacheInvalidationProducer;
 import com.olehprukhnytskyi.macrotrackerintakeservice.repository.jpa.IntakeRepository;
@@ -301,7 +304,6 @@ class IntakeServiceTest {
                 .foodId("QUICK_LOG:" + requestId)
                 .foodName("Estimated rice bowl")
                 .amount(320)
-                .unitType(UnitType.GRAMS)
                 .date(LocalDate.of(2026, 6, 19))
                 .nutriments(NutrimentsDto.builder()
                         .calories(new BigDecimal("480"))
@@ -342,7 +344,139 @@ class IntakeServiceTest {
         verify(intakeRepository).saveAndFlush(intakeCaptor.capture());
         assertEquals("QUICK_LOG:" + requestId, intakeCaptor.getValue().getFoodId());
         assertEquals("Estimated rice bowl", intakeCaptor.getValue().getFoodName());
+        assertNull(intakeCaptor.getValue().getUnitType());
         verify(foodClientService, never()).getFoodById(any());
+    }
+
+    @Test
+    @DisplayName("Quick-log update should be rejected because its nutrition is fixed")
+    void update_whenIntakeIsQuickLog_shouldRejectMutation() {
+        Intake quickLog = Intake.builder()
+                .id(44L)
+                .userId(userId)
+                .foodId("QUICK_LOG:" + UUID.randomUUID())
+                .amount(100)
+                .unitType(null)
+                .date(LocalDate.now())
+                .nutriments(new Nutriments())
+                .build();
+        when(intakeRepository.findByIdAndUserId(44L, userId))
+                .thenReturn(Optional.of(quickLog));
+
+        assertThrows(BadRequestException.class, () -> intakeService.update(
+                44L,
+                UpdateIntakeRequestDto.builder().amount(200).unitType(UnitType.GRAMS).build(),
+                userId));
+
+        verify(intakeMapper, never()).updateFromDto(any(), any());
+        verify(intakeRepository, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("Existing quick-log sync should keep the server's fixed values")
+    void pushSync_whenQuickLogExists_shouldIgnoreValueMutation() {
+        UUID requestId = UUID.randomUUID();
+        Intake existing = Intake.builder()
+                .id(44L)
+                .userId(userId)
+                .requestId(requestId)
+                .foodId("QUICK_LOG:" + requestId)
+                .foodName("Fixed lunch")
+                .amount(100)
+                .unitType(null)
+                .date(LocalDate.now())
+                .nutriments(new Nutriments())
+                .updatedAt(Instant.parse("2026-06-19T08:00:00Z"))
+                .build();
+        IntakeSyncItemDto mutation = IntakeSyncItemDto.builder()
+                .id(44L)
+                .foodId(existing.getFoodId())
+                .foodName("Changed lunch")
+                .amount(250)
+                .unitType(UnitType.GRAMS)
+                .date(existing.getDate())
+                .nutriments(NutrimentsDto.builder()
+                        .calories(new BigDecimal("999"))
+                        .build())
+                .updatedAt(Instant.parse("2026-06-19T09:00:00Z"))
+                .build();
+        IntakeSyncItemDto serverDto = IntakeSyncItemDto.builder()
+                .id(44L)
+                .foodId(existing.getFoodId())
+                .foodName(existing.getFoodName())
+                .amount(existing.getAmount())
+                .unitType(null)
+                .date(existing.getDate())
+                .nutriments(new NutrimentsDto())
+                .updatedAt(existing.getUpdatedAt())
+                .build();
+        when(intakeRepository.findAnyByIdAndUserId(44L, userId))
+                .thenReturn(Optional.of(existing));
+        when(intakeMapper.toSyncDto(existing)).thenReturn(serverDto);
+
+        IntakeSyncResponseDto response = intakeService.pushSync(userId,
+                IntakeSyncPushRequestDto.builder().changes(List.of(mutation)).build());
+
+        assertEquals("Fixed lunch", response.getData().getFirst().getFoodName());
+        assertEquals(100, response.getData().getFirst().getAmount());
+        assertNull(response.getData().getFirst().getUnitType());
+        verify(intakeMapper, never()).updateEntityFromSyncDto(any(), any());
+        verify(intakeRepository, never()).saveAndFlush(any());
+    }
+
+    @Test
+    @DisplayName("Existing planned quick-log sync may only transition to consumed")
+    void pushSync_whenQuickLogIsPlanned_shouldAllowConsumedTransition() {
+        Intake existing = Intake.builder()
+                .id(44L)
+                .userId(userId)
+                .foodId("QUICK_LOG:" + UUID.randomUUID())
+                .foodName("Fixed lunch")
+                .amount(100)
+                .unitType(null)
+                .date(LocalDate.now())
+                .status(IntakeStatus.PLANNED)
+                .nutriments(new Nutriments())
+                .updatedAt(Instant.parse("2026-06-19T08:00:00Z"))
+                .build();
+        IntakeSyncItemDto change = IntakeSyncItemDto.builder()
+                .id(44L)
+                .foodId(existing.getFoodId())
+                .foodName("Changed lunch")
+                .amount(250)
+                .unitType(UnitType.GRAMS)
+                .date(existing.getDate())
+                .status(IntakeStatus.CONSUMED)
+                .nutriments(NutrimentsDto.builder()
+                        .calories(new BigDecimal("999"))
+                        .build())
+                .updatedAt(Instant.parse("2026-06-19T09:00:00Z"))
+                .build();
+        when(intakeRepository.findAnyByIdAndUserId(44L, userId))
+                .thenReturn(Optional.of(existing));
+        when(intakeRepository.saveAndFlush(existing)).thenReturn(existing);
+        when(intakeMapper.toSyncDto(existing)).thenAnswer(invocation ->
+                IntakeSyncItemDto.builder()
+                        .id(44L)
+                        .foodId(existing.getFoodId())
+                        .foodName(existing.getFoodName())
+                        .amount(existing.getAmount())
+                        .unitType(existing.getUnitType())
+                        .date(existing.getDate())
+                        .status(existing.getStatus())
+                        .nutriments(new NutrimentsDto())
+                        .updatedAt(existing.getUpdatedAt())
+                        .build());
+
+        IntakeSyncResponseDto response = intakeService.pushSync(userId,
+                IntakeSyncPushRequestDto.builder().changes(List.of(change)).build());
+
+        assertEquals(IntakeStatus.CONSUMED, existing.getStatus());
+        assertEquals("Fixed lunch", response.getData().getFirst().getFoodName());
+        assertEquals(100, response.getData().getFirst().getAmount());
+        assertNull(response.getData().getFirst().getUnitType());
+        verify(intakeMapper, never()).updateEntityFromSyncDto(any(), any());
+        verify(intakeRepository).saveAndFlush(existing);
     }
 
     @Test

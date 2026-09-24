@@ -4,6 +4,8 @@ import com.olehprukhnytskyi.macrotrackerintakeservice.model.MealTemplate;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -14,6 +16,8 @@ public interface MealTemplateRepository extends JpaRepository<MealTemplate, Long
     Optional<MealTemplate> findByUserIdAndRequestId(Long userId, UUID requestId);
 
     List<MealTemplate> findAllByUserId(Long userId);
+
+    Page<MealTemplate> findAllByUserId(Long userId, Pageable pageable);
 
     long countByUserId(Long userId);
 }

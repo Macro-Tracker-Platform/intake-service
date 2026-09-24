@@ -1,0 +1,14 @@
+databaseChangeLog:
+  - changeSet:
+      id: 18-allow-null-unit-type-for-quick-logs
+      author: codex
+      changes:
+        - dropNotNullConstraint:
+            tableName: intake
+            columnName: unit_type
+            columnDataType: VARCHAR(255)
+        - sql:
+            sql: >-
+              UPDATE intake
+              SET unit_type = NULL
+              WHERE SUBSTRING(food_id, 1, 10) = 'QUICK_LOG:'

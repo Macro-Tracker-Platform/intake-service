@@ -12,6 +12,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Min;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
@@ -51,9 +52,13 @@ public class MealController {
             """)
     @GetMapping
     public ResponseEntity<List<MealTemplateResponseDto>> getAllTemplates(
-            @RequestHeader(CustomHeaders.X_USER_ID) Long userId) {
-        log.info("Request to get all templates for userId={}", userId);
-        List<MealTemplateResponseDto> templates = mealService.getTemplates(userId);
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestParam(defaultValue = "0") @Min(0) int offset,
+            @RequestParam(defaultValue = "25") @Min(1) int limit) {
+        log.info("Request to get templates for userId={} offset={} limit={}",
+                userId, offset, limit);
+        List<MealTemplateResponseDto> templates = mealService.getTemplates(
+                userId, offset, limit);
         log.debug("Retrieved {} templates for userId={}", templates.size(), userId);
         return ResponseEntity.ok(templates);
     }
