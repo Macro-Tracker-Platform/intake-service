@@ -18,6 +18,4 @@ public interface MealTemplateRepository extends JpaRepository<MealTemplate, Long
     List<MealTemplate> findAllByUserId(Long userId);
 
     Page<MealTemplate> findAllByUserId(Long userId, Pageable pageable);
-
-    long countByUserId(Long userId);
 }

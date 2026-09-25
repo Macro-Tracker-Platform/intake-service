@@ -185,12 +185,14 @@ class MealControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("Free account should receive 429 after three templates and recipes")
-    void createTemplate_whenFreeLimitReached_shouldReturn429() throws Exception {
+    @DisplayName("Free account can create more than three templates and recipes")
+    void createTemplate_whenFreeAccountHasThreeTemplates_shouldCreateAnother() throws Exception {
         Long userId = 109L;
         createAndSaveTemplateInDb(userId, "Breakfast");
         createAndSaveTemplateInDb(userId, "Lunch");
         createAndSaveRecipeTemplateInDb(userId);
+        given(foodClientService.getFoodsByIds(anyList()))
+                .willReturn(List.of(createMockFood("food-fourth", "Fourth food", 100)));
         MealTemplateRequestDto request = MealTemplateRequestDto.builder()
                 .name("Fourth saved meal")
                 .items(List.of(MealTemplateRequestDto.TemplateItemDto.builder()
@@ -202,11 +204,12 @@ class MealControllerTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/api/meal-templates")
                         .header(CustomHeaders.X_USER_ID, userId)
-                        .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isTooManyRequests())
-                .andExpect(jsonPath("$.code").value("MEAL_TEMPLATE_LIMIT_REACHED"));
+                .header(CustomHeaders.X_REQUEST_ID, UUID.randomUUID())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isCreated());
+
+        assertThat(mealTemplateRepository.findAllByUserId(userId)).hasSize(4);
     }
 
     @Test
