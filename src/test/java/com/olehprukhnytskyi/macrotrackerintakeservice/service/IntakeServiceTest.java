@@ -1,6 +1,7 @@
 package com.olehprukhnytskyi.macrotrackerintakeservice.service;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -518,5 +519,57 @@ class IntakeServiceTest {
         assertTrue(existing.getUpdatedAt().isAfter(serverUpdatedAt));
         assertTrue(response.getData().getFirst().isDeleted());
         verify(intakeRepository).saveAndFlush(existing);
+    }
+
+    @Test
+    void consumePlannedAllowsPastDates() {
+        LocalDate yesterday = LocalDate.now().minusDays(1);
+        Intake planned = Intake.builder()
+                .id(90L)
+                .userId(userId)
+                .foodId("food-planned")
+                .date(yesterday)
+                .status(IntakeStatus.PLANNED)
+                .build();
+        when(intakeRepository.findByUserIdAndDateAndStatus(
+                userId, yesterday, IntakeStatus.PLANNED)).thenReturn(List.of(planned));
+        when(intakeRepository.saveAll(List.of(planned))).thenReturn(List.of(planned));
+        when(intakeMapper.toDto(planned)).thenReturn(IntakeResponseDto.builder()
+                .id(90L)
+                .status(IntakeStatus.CONSUMED)
+                .build());
+
+        List<IntakeResponseDto> result = intakeService.consumePlanned(
+                yesterday, userId, null);
+
+        assertEquals(IntakeStatus.CONSUMED, planned.getStatus());
+        assertEquals(IntakeStatus.CONSUMED, result.getFirst().getStatus());
+    }
+
+    @Test
+    void cancelPlannedSoftDeletesOnlyRowsReturnedAsPlanned() {
+        LocalDate date = LocalDate.now();
+        Intake planned = Intake.builder()
+                .id(91L)
+                .userId(userId)
+                .foodId("food-planned")
+                .date(date)
+                .status(IntakeStatus.PLANNED)
+                .build();
+        final Intake consumed = Intake.builder()
+                .id(92L)
+                .userId(userId)
+                .foodId("food-consumed")
+                .date(date)
+                .status(IntakeStatus.CONSUMED)
+                .build();
+        when(intakeRepository.findByUserIdAndDateAndStatus(
+                userId, date, IntakeStatus.PLANNED)).thenReturn(List.of(planned));
+
+        intakeService.cancelPlanned(date, userId, null);
+
+        assertTrue(planned.isDeleted());
+        assertFalse(consumed.isDeleted());
+        verify(intakeRepository).saveAll(List.of(planned));
     }
 }

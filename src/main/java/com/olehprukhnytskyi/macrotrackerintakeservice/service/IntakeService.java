@@ -293,6 +293,23 @@ public class IntakeService {
         return saved.stream().map(intakeMapper::toDto).toList();
     }
 
+    @Transactional
+    public void cancelPlanned(LocalDate date, Long userId, String originDeviceId) {
+        List<Intake> planned = intakeRepository.findByUserIdAndDateAndStatus(
+                userId, date, IntakeStatus.PLANNED);
+        Instant updatedAt = now();
+        planned.forEach(intake -> {
+            intake.setDeleted(true);
+            intake.setUpdatedAt(updatedAt);
+        });
+        intakeRepository.saveAll(planned);
+        manualEvict(userId, date);
+        if (!planned.isEmpty()) {
+            foodPhotoHistoryService.evictAfterCommit(userId);
+            cacheInvalidationProducer.send(userId, INTAKE_DOMAIN, originDeviceId);
+        }
+    }
+
     private void manualEvictUserIntakes(Long userId, LocalDate date) {
         String key = userId + ":" + date;
         try {
@@ -327,12 +344,7 @@ public class IntakeService {
             }
             return;
         }
-        LocalDate today = LocalDate.now();
-        if (date == null || date.isBefore(today) || date.isAfter(today.plusDays(14))) {
-            throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
-                    "Planned meals must be dated within the next 14 days");
-        }
-        planningEntitlementService.requireFuturePlanning(userId);
+        planningEntitlementService.validatePlanningDate(userId, date);
     }
 
     private void calculateAndSetNutriments(Intake intake, NutrimentsDto sourceNutriments,

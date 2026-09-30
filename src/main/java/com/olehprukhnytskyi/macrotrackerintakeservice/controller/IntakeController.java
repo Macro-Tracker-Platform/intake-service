@@ -185,6 +185,15 @@ public class IntakeController {
         return ResponseEntity.ok(intakeService.consumePlanned(date, userId, deviceId));
     }
 
+    @DeleteMapping("/planned")
+    public ResponseEntity<Void> cancelPlanned(
+            @RequestHeader(CustomHeaders.X_USER_ID) Long userId,
+            @RequestHeader(value = X_DEVICE_ID, required = false) String deviceId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
+        intakeService.cancelPlanned(date, userId, deviceId);
+        return ResponseEntity.noContent().build();
+    }
+
     @GetMapping("/planned/shopping-list")
     public ResponseEntity<List<ShoppingListItemDto>> shoppingList(
             @RequestHeader(CustomHeaders.X_USER_ID) Long userId,

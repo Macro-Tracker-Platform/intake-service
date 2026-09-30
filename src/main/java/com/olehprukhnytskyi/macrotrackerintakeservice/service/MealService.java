@@ -292,13 +292,8 @@ public class MealService {
     }
 
     private void validateFutureDate(LocalDate date, Long userId) {
-        LocalDate today = LocalDate.now();
-        if (date.isAfter(today.plusDays(14))) {
-            throw new BadRequestException(CommonErrorCode.BAD_REQUEST,
-                    "Meals can be planned up to 14 days ahead");
-        }
-        if (date.isAfter(today)) {
-            planningEntitlementService.requireFuturePlanning(userId);
+        if (date.isAfter(LocalDate.now())) {
+            planningEntitlementService.validatePlanningDate(userId, date);
         }
     }
 
